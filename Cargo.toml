@@ -1,0 +1,8 @@
+[package]
+name = "kaleidoscope"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chumsky = { version = "0.13.0", features = ["pratt"] }
+thiserror = "2.0.20"
