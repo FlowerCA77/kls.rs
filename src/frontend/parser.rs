@@ -47,7 +47,10 @@ fn create_ext_parser<'src>()
 fn create_expr_parser<'src>()
 -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
     recursive(|expr| {
-        let number_parser = text::int(10).map(|s: &'src str| ExprAST::Number(s.parse().unwrap()));
+        let number_parser = text::int(10)
+            .then(just('.').ignore_then(text::digits(10)).or_not())
+            .to_slice()
+            .map(|s: &'src str| ExprAST::Number(s.parse().unwrap()));
 
         let identifier_parser = create_identifier_parser();
 
@@ -89,6 +92,11 @@ fn create_expr_parser<'src>()
             }),
             infix(left(40), just('*'), |lhs, _, rhs, _| ExprAST::Binary {
                 op: '*',
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            infix(left(40), just('/'), |lhs, _, rhs, _| ExprAST::Binary {
+                op: '/',
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
@@ -208,6 +216,10 @@ mod tests {
             "\0\0\0",
             "💥",
             "def foo(x) x + ",
+            "4.",
+            "4.5.6",
+            ".5",
+            "99999999999999999999999999999999999",
         ];
 
         for input in garbage {
