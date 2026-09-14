@@ -4,9 +4,11 @@ use std::io::{self, BufRead, Write};
 use crate::frontend::ast::TopLevel;
 use crate::frontend::parser::create_top_level_parser;
 
+use crate::Result;
+
 pub fn run_repl<F>(mut on_item: F)
 where
-    F: FnMut(TopLevel) -> Result<(), String>,
+    F: FnMut(TopLevel) -> Result<()>,
 {
     loop {
         print!("ready> ");

@@ -14,7 +14,7 @@
 //! <Call>                 ::=
 //! ```
 
-pub const KEYWORDS: &[&str] = &["def", "extern"];
+pub(crate) const KEYWORDS: &[&str] = &["def", "extern"];
 
 #[derive(Debug, Clone)]
 pub enum ExprAST {
@@ -33,14 +33,14 @@ pub enum ExprAST {
 
 #[derive(Debug, Clone)]
 pub struct PrototypeAST {
-    pub name: String,
-    pub args: Vec<String>,
+    pub(crate) name: String,
+    pub(crate) args: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunctionAST {
-    pub proto: PrototypeAST,
-    pub body: ExprAST,
+    pub(crate) proto: PrototypeAST,
+    pub(crate) body: ExprAST,
 }
 
 #[derive(Debug, Clone)]
@@ -52,5 +52,5 @@ pub enum TopLevel {
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub items: Vec<TopLevel>,
+    pub(crate) items: Vec<TopLevel>,
 }
