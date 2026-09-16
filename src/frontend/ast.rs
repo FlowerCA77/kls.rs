@@ -1,19 +1,3 @@
-//! Kaleidoscope SPEC:
-//! ```plaintext
-//! <Program>              ::= <Top-Level Expression>*
-//!
-//! <Top-Level Expression> ::= <Function> | <Prototype> | <Expression>
-//!
-//! <Function>             ::= def <Prototype> <Expression>
-//! <Prototype>            ::= <id> ( <id>* )
-//! <Expression>           ::= <Number> | <Variable> | <Binary> | <Call>
-//!
-//! <Number>               ::=
-//! <Variable>             ::=
-//! <Binary>               ::=
-//! <Call>                 ::=
-//! ```
-
 pub(crate) const KEYWORDS: &[&str] = &["def", "extern"];
 
 #[derive(Debug, Clone)]

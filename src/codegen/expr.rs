@@ -1,9 +1,10 @@
 use crate::Result;
-use crate::codegen::codegen::Codegen;
+use crate::codegen::Codegen;
 use crate::frontend::ast::ExprAST;
+
 use inkwell::{
     FloatPredicate,
-    values::{BasicValueEnum, ValueKind},
+    values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind},
 };
 
 impl<'ctx> Codegen<'ctx> {
@@ -24,9 +25,9 @@ impl<'ctx> Codegen<'ctx> {
         lhs: &ExprAST,
         rhs: &ExprAST,
     ) -> Result<BasicValueEnum<'ctx>> {
-        let x = self.compile_expr(lhs)?.into_float_value();
-        let y = self.compile_expr(rhs)?.into_float_value();
-        let value = match op {
+        let x: FloatValue = self.compile_expr(lhs)?.into_float_value();
+        let y: FloatValue = self.compile_expr(rhs)?.into_float_value();
+        let value: FloatValue = match op {
             '+' => self.builder.build_float_add(x, y, "addtmp")?.into(),
             '-' => self.builder.build_float_sub(x, y, "subtmp")?.into(),
             '*' => self.builder.build_float_mul(x, y, "multmp")?.into(),
@@ -44,6 +45,13 @@ impl<'ctx> Codegen<'ctx> {
             }
             _ => return Err(format!("unknown operator: `{}`", op).into()),
         };
+
+        if self.options.fast_math {
+            if let Some(inst) = value.as_instruction_value() {
+                inst.set_fast_math_flags(FastMathFlags::all())?;
+            }
+        }
+
         Ok(BasicValueEnum::FloatValue(value))
     }
 

@@ -1,5 +1,5 @@
 use crate::Result;
-use crate::codegen::codegen::Codegen;
+use crate::codegen::Codegen;
 use crate::frontend::ast::{FunctionAST, PrototypeAST, TopLevel};
 
 impl<'ctx> Codegen<'ctx> {

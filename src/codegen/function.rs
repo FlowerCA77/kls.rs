@@ -1,6 +1,7 @@
 use crate::Result;
-use crate::codegen::codegen::Codegen;
+use crate::codegen::Codegen;
 use crate::frontend::ast::{FunctionAST, PrototypeAST};
+
 use inkwell::values::FunctionValue;
 
 impl<'ctx> Codegen<'ctx> {
