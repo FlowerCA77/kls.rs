@@ -69,7 +69,11 @@ fn create_target_machine(opt_level: OptimizationLevel) -> TargetMachine {
 
 fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationLevel) {
     repl::run_repl(|item| {
-        repl_ctx.codegen.compile_top_level(&item)?;
+        let anon_name = repl_ctx
+            .codegen
+            .compile_top_level(&item)?
+            .unwrap_or(String::from("__anon_expr"));
+
         match opt_level {
             OptimizationLevel::None => repl_ctx.codegen.optimize("default<O0>")?,
             OptimizationLevel::Less => repl_ctx.codegen.optimize("default<O1>")?,
@@ -91,10 +95,13 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
 
         match item {
             TopLevel::Expr(_) => {
-                if let Some(func) = repl_ctx.jit.lookup("__anon_expr") {
+                if let Some(func) = repl_ctx.jit.lookup(anon_name.as_str()) {
                     let result = unsafe { func.call() };
                     println!("========= Evaluate ========= (stdout)");
                     println!("ans = {}", result);
+                } else {
+                    eprintln!("====== Evaluate Failed ====== (stdout)");
+                    eprintln!("cannot find {}", anon_name);
                 }
             }
             _ => {}
