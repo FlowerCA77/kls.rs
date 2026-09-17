@@ -67,8 +67,42 @@ fn create_expr_parser<'src>()
 
         let variable_parser = identifier_parser.map(ExprAST::Variable);
 
+        let if_parser = text::keyword("if")
+            .padded()
+            .ignore_then(expr.clone())
+            .then_ignore(text::keyword("then").padded())
+            .then(expr.clone())
+            .then_ignore(text::keyword("else").padded())
+            .then(expr.clone())
+            .map(|((cond, e_true), e_false)| ExprAST::If {
+                cond: Box::new(cond),
+                e_true: Box::new(e_true),
+                e_false: Box::new(e_false),
+            });
+
+        let for_parser = text::keyword("for")
+            .padded()
+            .ignore_then(text::ident().padded().map(|s: &str| s.to_string()))
+            .then_ignore(just('=').padded())
+            .then(expr.clone())
+            .then_ignore(just(',').padded())
+            .then(expr.clone())
+            .then_ignore(just(',').padded())
+            .then(expr.clone())
+            .then_ignore(text::keyword("in").padded())
+            .then(expr.clone())
+            .map(|((((var, e_init), e_cond), e_step), e_body)| ExprAST::For {
+                var,
+                e_init: Box::new(e_init),
+                e_cond: Box::new(e_cond),
+                e_step: Box::new(e_step),
+                e_body: Box::new(e_body),
+            });
+
         let atom_parser = choice((
             number_parser,
+            if_parser,
+            for_parser,
             call_parser,
             variable_parser,
             expr.clone().delimited_by(just('('), just(')')),

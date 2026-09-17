@@ -1,4 +1,4 @@
-pub(crate) const KEYWORDS: &[&str] = &["def", "extern"];
+pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
 
 #[derive(Debug, Clone)]
 pub enum ExprAST {
@@ -12,6 +12,18 @@ pub enum ExprAST {
     Call {
         callee: String,
         args: Vec<ExprAST>,
+    },
+    If {
+        cond: Box<ExprAST>,
+        e_true: Box<ExprAST>,
+        e_false: Box<ExprAST>,
+    },
+    For {
+        var: String,
+        e_init: Box<ExprAST>,
+        e_cond: Box<ExprAST>,
+        e_step: Box<ExprAST>,
+        e_body: Box<ExprAST>,
     },
 }
 

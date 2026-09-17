@@ -18,9 +18,6 @@ impl<'ctx> Codegen<'ctx> {
             self.module.add_function(&proto.name, fn_type, None)
         };
 
-        self.function_protos
-            .insert(proto.name.clone(), proto.clone());
-
         for (i, arg) in function.get_param_iter().enumerate() {
             arg.set_name(&proto.args[i]);
         }
@@ -32,6 +29,7 @@ impl<'ctx> Codegen<'ctx> {
         let function = self.compile_prototype(&func.proto)?;
 
         let entry = self.context.append_basic_block(function, "entry");
+
         self.builder.position_at_end(entry);
 
         self.named_values.clear();
@@ -39,16 +37,35 @@ impl<'ctx> Codegen<'ctx> {
             self.named_values.insert(func.proto.args[i].clone(), arg);
         }
 
-        let body = self.compile_expr(&func.body)?;
-        self.builder.build_return(Some(&body))?;
+        match self.compile_expr(&func.body) {
+            Ok(body) => {
+                if let Err(e) = self.builder.build_return(Some(&body)) {
+                    unsafe { function.delete() };
+                    return Err(e.into());
+                }
 
-        if function.verify(true) {
-            Ok(function)
-        } else {
-            unsafe {
-                function.delete();
+                if function.verify(true) {
+                    self.function_protos
+                        .insert(func.proto.name.clone(), func.proto.clone());
+                    Ok(function)
+                } else {
+                    unsafe { function.delete() };
+                    return Err(format!("invalid function: {}", func.proto.name).into());
+                }
             }
-            Err(format!("invalid function: {}", func.proto.name).into())
+            Err(e) => {
+                unsafe { function.delete() };
+                return Err(e);
+            }
         }
+    }
+
+    pub fn compile_extern(&mut self, proto: &PrototypeAST) -> Result<FunctionValue<'ctx>> {
+        let function = self.compile_prototype(proto)?;
+
+        self.function_protos
+            .insert(proto.name.clone(), proto.clone());
+
+        Ok(function)
     }
 }

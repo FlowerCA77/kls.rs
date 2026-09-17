@@ -10,7 +10,7 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(())
             }
             TopLevel::Extern(p) => {
-                self.compile_prototype(p)?;
+                self.compile_extern(p)?;
                 Ok(())
             }
             TopLevel::Expr(e) => {
