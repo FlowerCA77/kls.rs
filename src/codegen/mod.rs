@@ -18,6 +18,7 @@ pub struct CodegenOptions {
 }
 
 pub(crate) struct Codegen<'ctx> {
+    pub(crate) anon_counter: usize,
     pub(crate) context: &'ctx Context,
     pub(crate) module: Module<'ctx>,
     pub(crate) builder: Builder<'ctx>,
@@ -34,13 +35,22 @@ impl<'ctx> Codegen<'ctx> {
         target_machine: TargetMachine,
         options: CodegenOptions,
     ) -> Self {
+        let module = context.create_module(module_name);
+        let builder = context.create_builder();
+        let named_values = HashMap::new();
+        let function_protos = HashMap::new();
+
+        module.set_triple(&target_machine.get_triple());
+        module.set_data_layout(&target_machine.get_target_data().get_data_layout());
+
         Self {
+            anon_counter: 0,
             context,
-            module: context.create_module(module_name),
-            builder: context.create_builder(),
+            module,
+            builder,
             target_machine,
-            named_values: HashMap::new(),
-            function_protos: HashMap::new(),
+            named_values,
+            function_protos,
             options,
         }
     }
