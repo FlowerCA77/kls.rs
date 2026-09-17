@@ -19,20 +19,35 @@ impl<'ctx> Codegen<'ctx> {
             .ok_or_else(|| format!("unknown variable: {}", name).into())
     }
 
+    fn compile_unary(&mut self, op: &str, operand: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+        let v = self.compile_expr(operand)?.into_float_value();
+
+        let value = match op {
+            "-" => {
+                let zero = self.context.f64_type().const_float(0.0);
+                self.builder.build_float_sub(zero, v, "negtmp")?
+            }
+            "+" => v,
+            _ => return Err(format!("undefined unary operator: `{}`", op).into()),
+        };
+        Ok(value.into())
+    }
+
     fn compile_binary(
         &mut self,
-        op: char,
+        op: &str,
         lhs: &ExprAST,
         rhs: &ExprAST,
     ) -> Result<BasicValueEnum<'ctx>> {
         let x: FloatValue = self.compile_expr(lhs)?.into_float_value();
         let y: FloatValue = self.compile_expr(rhs)?.into_float_value();
+
         let value: FloatValue = match op {
-            '+' => self.builder.build_float_add(x, y, "addtmp")?.into(),
-            '-' => self.builder.build_float_sub(x, y, "subtmp")?.into(),
-            '*' => self.builder.build_float_mul(x, y, "multmp")?.into(),
-            '/' => self.builder.build_float_div(x, y, "divtmp")?.into(),
-            '<' => {
+            "+" => self.builder.build_float_add(x, y, "addtmp")?.into(),
+            "-" => self.builder.build_float_sub(x, y, "subtmp")?.into(),
+            "*" => self.builder.build_float_mul(x, y, "multmp")?.into(),
+            "/" => self.builder.build_float_div(x, y, "divtmp")?.into(),
+            "<" => {
                 let cmp = self
                     .builder
                     .build_float_compare(FloatPredicate::ULT, x, y, "cmptmp")?;
@@ -43,7 +58,40 @@ impl<'ctx> Codegen<'ctx> {
                 )?;
                 bool_as_float.into()
             }
-            _ => return Err(format!("unknown operator: {}", op).into()),
+            "<=" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::ULE, x, y, "cmptmp")?;
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+                bool_as_float.into()
+            }
+            ">" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UGT, x, y, "cmptmp")?;
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+                bool_as_float.into()
+            }
+            ">=" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UGE, x, y, "cmptmp")?;
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+                bool_as_float.into()
+            }
+            _ => return Err(format!("undefined binary operator: `{}`", op).into()),
         };
 
         if self.options.fast_math {
@@ -207,7 +255,8 @@ impl<'ctx> Codegen<'ctx> {
         match expr {
             ExprAST::Number(n) => self.compile_number(*n),
             ExprAST::Variable(name) => self.compile_variable(name),
-            ExprAST::Binary { op, lhs, rhs } => self.compile_binary(*op, lhs, rhs),
+            ExprAST::Unary { op, operand } => self.compile_unary(op.as_str(), operand),
+            ExprAST::Binary { op, lhs, rhs } => self.compile_binary(op.as_str(), lhs, rhs),
             ExprAST::Call { callee, args } => self.compile_call(callee, args),
             ExprAST::If {
                 cond,

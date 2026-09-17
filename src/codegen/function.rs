@@ -9,13 +9,15 @@ impl<'ctx> Codegen<'ctx> {
         &mut self,
         proto: &PrototypeAST,
     ) -> Result<FunctionValue<'ctx>> {
-        let function = if let Some(f) = self.module.get_function(&proto.name) {
+        let llvm_name = proto.name.llvm_name();
+
+        let function = if let Some(f) = self.module.get_function(&llvm_name) {
             f
         } else {
             let f64_type = self.context.f64_type();
             let param_types: Vec<_> = proto.args.iter().map(|_| f64_type.into()).collect();
             let fn_type = f64_type.fn_type(&param_types, false);
-            self.module.add_function(&proto.name, fn_type, None)
+            self.module.add_function(&llvm_name, fn_type, None)
         };
 
         for (i, arg) in function.get_param_iter().enumerate() {
@@ -46,7 +48,7 @@ impl<'ctx> Codegen<'ctx> {
 
                 if function.verify(true) {
                     self.function_protos
-                        .insert(func.proto.name.clone(), func.proto.clone());
+                        .insert(func.proto.name.llvm_name(), func.proto.clone());
                     Ok(function)
                 } else {
                     unsafe { function.delete() };
@@ -64,7 +66,7 @@ impl<'ctx> Codegen<'ctx> {
         let function = self.compile_prototype(proto)?;
 
         self.function_protos
-            .insert(proto.name.clone(), proto.clone());
+            .insert(proto.name.llvm_name(), proto.clone());
 
         Ok(function)
     }

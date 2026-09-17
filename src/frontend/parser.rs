@@ -1,10 +1,18 @@
-use crate::frontend::ast::{ExprAST, FunctionAST, KEYWORDS, Program, PrototypeAST, TopLevel};
+use crate::frontend::ast::{ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
 
 use chumsky::{
     error::Rich,
-    pratt::{infix, left},
+    pratt::{infix, left, prefix},
     prelude::*,
 };
+
+pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
+pub(crate) const BUILTIN_UNARY_OPS: &[char] = &['+', '-'];
+pub(crate) const BUILTIN_BINARY_OPS: &[char] = &['+', '-', '*', '/', '<', '>'];
+
+fn is_op_char(c: char) -> bool {
+    "+-*/<>=&|^~!%@$?".contains(c)
+}
 
 fn create_identifier_parser<'src>()
 -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
@@ -15,15 +23,49 @@ fn create_identifier_parser<'src>()
 
 fn create_prototype_parser<'src>()
 -> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
-    create_identifier_parser()
+    let op_name = just('(')
+        .ignore_then(any::<&str, extra::Err<Rich<'src, char>>>().filter(|c: &char| is_op_char(*c)))
+        .then(just(',').ignore_then(text::int(10).padded()).or_not())
+        .then_ignore(just(')'))
+        .map(|(op, prec)| (op, prec.map(|s| s.parse::<u8>().unwrap())));
+
+    let args = text::ident()
+        .map(|s: &str| s.to_string())
         .padded()
-        .then(
-            create_identifier_parser()
-                .padded()
-                .separated_by(just(','))
-                .collect::<Vec<_>>()
-                .delimited_by(just('('), just(')')),
-        )
+        .separated_by(just(','))
+        .collect::<Vec<String>>()
+        .delimited_by(just('('), just(')'));
+
+    let func_def = text::ident()
+        .filter(|s: &&str| !KEYWORDS.contains(s))
+        .map(|s: &str| FunctionName::Ident(s.to_string()))
+        .then(args.clone());
+
+    let op_def = op_name
+        .then(args)
+        .try_map(|((op, prec), args), span| match args.len() {
+            1 => {
+                if BUILTIN_UNARY_OPS.contains(&op) {
+                    Err(Rich::custom(span, format!("{op} is a builtin operator")))
+                } else {
+                    Ok((FunctionName::Unary(op, prec.unwrap_or(30)), args))
+                }
+            }
+            2 => {
+                if BUILTIN_BINARY_OPS.contains(&op) {
+                    Err(Rich::custom(span, format!("{op} is a builtin operator")))
+                } else {
+                    Ok((FunctionName::Binary(op, prec.unwrap_or(20)), args))
+                }
+            }
+            n => Err(Rich::custom(
+                span,
+                format!("operator must have 1 or 2 args, got {n}"),
+            )),
+        });
+
+    func_def
+        .or(op_def)
         .padded()
         .map(|(name, args)| PrototypeAST { name, args })
 }
@@ -110,28 +152,51 @@ fn create_expr_parser<'src>()
         .padded();
 
         atom_parser.pratt((
+            prefix(30, just('-'), |_, rhs, _| ExprAST::Unary {
+                op: "-".to_string(),
+                operand: Box::new(rhs),
+            }),
+            prefix(30, just('+'), |_, rhs, _| ExprAST::Unary {
+                op: "+".to_string(),
+                operand: Box::new(rhs),
+            }),
+            infix(left(10), just("<="), |lhs, _, rhs, _| ExprAST::Binary {
+                op: "<=".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            infix(left(10), just(">="), |lhs, _, rhs, _| ExprAST::Binary {
+                op: ">=".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
             infix(left(10), just('<'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: '<',
+                op: "<".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            infix(left(10), just('<'), |lhs, _, rhs, _| ExprAST::Binary {
+                op: "<".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
             infix(left(20), just('+'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: '+',
+                op: "+".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
             infix(left(20), just('-'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: '-',
+                op: "-".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
             infix(left(40), just('*'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: '*',
+                op: "*".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
             infix(left(40), just('/'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: '/',
+                op: "/".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),

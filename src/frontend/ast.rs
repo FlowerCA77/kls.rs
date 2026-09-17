@@ -1,11 +1,15 @@
-pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
+use std::fmt::{Display, Formatter, Result as fmtResult};
 
 #[derive(Debug, Clone)]
 pub enum ExprAST {
     Number(f64),
     Variable(String),
+    Unary {
+        op: String,
+        operand: Box<ExprAST>,
+    },
     Binary {
-        op: char,
+        op: String,
         lhs: Box<ExprAST>,
         rhs: Box<ExprAST>,
     },
@@ -27,9 +31,36 @@ pub enum ExprAST {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunctionName {
+    Ident(String),
+    Unary(char, u8),
+    Binary(char, u8),
+}
+
+impl FunctionName {
+    pub fn llvm_name(&self) -> String {
+        match self {
+            FunctionName::Ident(s) => s.clone(),
+            FunctionName::Unary(op, _) => format!("unary_{:02x}", *op as u32),
+            FunctionName::Binary(op, _) => format!("binary_{:02x}", *op as u32),
+        }
+    }
+}
+
+impl Display for FunctionName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmtResult {
+        match self {
+            FunctionName::Ident(s) => write!(f, "{s}"),
+            FunctionName::Unary(op, prec) => write!(f, "unary({op}, {prec})"),
+            FunctionName::Binary(op, prec) => write!(f, "binary({op}, {prec})"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PrototypeAST {
-    pub(crate) name: String,
+    pub(crate) name: FunctionName,
     pub(crate) args: Vec<String>,
 }
 

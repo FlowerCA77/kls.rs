@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::codegen::Codegen;
-use crate::frontend::ast::{FunctionAST, PrototypeAST, TopLevel};
+use crate::frontend::ast::{FunctionAST, FunctionName, PrototypeAST, TopLevel};
 
 impl<'ctx> Codegen<'ctx> {
     pub(crate) fn compile_top_level(&mut self, item: &TopLevel) -> Result<()> {
@@ -16,7 +16,7 @@ impl<'ctx> Codegen<'ctx> {
             TopLevel::Expr(e) => {
                 let func = FunctionAST {
                     proto: PrototypeAST {
-                        name: "__anon_expr".into(),
+                        name: FunctionName::Ident("__anon_expr".to_string()),
                         args: vec![],
                     },
                     body: e.clone(),
