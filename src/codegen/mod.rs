@@ -49,6 +49,19 @@ impl<'ctx> Codegen<'ctx> {
         &self.module
     }
 
+    pub(crate) fn take_module(&mut self) -> Module<'ctx> {
+        let module_name = self
+            .module
+            .get_name()
+            .to_str()
+            .unwrap_or("kaleidoscope_module")
+            .to_string();
+        let new_module = self.context.create_module(module_name.as_str());
+        new_module.set_triple(&self.target_machine.get_triple());
+        new_module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
+        std::mem::replace(&mut self.module, new_module)
+    }
+
     pub(crate) fn get_target_machine(&self) -> &TargetMachine {
         &self.target_machine
     }
