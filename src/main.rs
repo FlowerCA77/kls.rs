@@ -77,27 +77,28 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
             OptimizationLevel::Aggressive => repl_ctx.codegen.optimize("default<O3>")?,
         }
 
+        if cli.ast {
+            eprintln!("=========== AST =========== (stderr)");
+            eprintln!("{:#?}", item);
+        }
+
+        if cli.ir {
+            eprintln!("========= LLVM IR ========= (stderr)");
+            repl_ctx.codegen.get_module().print_to_stderr();
+        }
+
         repl_ctx.jit.add_module(repl_ctx.codegen.take_module())?;
 
         match item {
             TopLevel::Expr(_) => {
                 if let Some(func) = repl_ctx.jit.lookup("__anon_expr") {
                     let result = unsafe { func.call() };
-                    println!("{}", result);
+                    println!("========= Evaluate ========= (stdout)");
+                    println!("ans = {}", result);
                 }
             }
             _ => {}
         };
-
-        if cli.ast {
-            println!("=========== AST ===========");
-            println!("{:#?}", item);
-        }
-
-        if cli.ir {
-            println!("========= LLVM IR =========");
-            repl_ctx.codegen.get_module().print_to_stderr();
-        }
 
         Ok(())
     });
