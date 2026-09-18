@@ -179,7 +179,7 @@ fn create_expr_parser<'src>()
                 rhs: Box::new(rhs),
             }),
             infix(left(10), just('<'), |lhs, _, rhs, _| ExprAST::Binary {
-                op: "<".to_string(),
+                op: ">".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
