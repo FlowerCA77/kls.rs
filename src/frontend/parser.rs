@@ -33,8 +33,7 @@ fn create_prototype_parser<'src>()
         .then_ignore(just(')'))
         .map(|op: &str| op.to_string());
 
-    let args = text::ident()
-        .map(|s: &str| s.to_string())
+    let args = create_identifier_parser()
         .padded()
         .separated_by(just(','))
         .collect::<Vec<String>>()
