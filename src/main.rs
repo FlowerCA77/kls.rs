@@ -98,7 +98,7 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
                     println!("========= Evaluate ========= (stdout)");
                     println!("ans = {}", result);
                 } else {
-                    eprintln!("====== Evaluate Failed ====== (stdout)");
+                    eprintln!("====== Evaluate Failed ====== (stderr)");
                     eprintln!("cannot find {}", anon_name);
                 }
             }
