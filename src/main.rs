@@ -3,20 +3,18 @@ mod frontend;
 mod jit;
 mod repl;
 
-use std::path::PathBuf;
-
 use crate::{
     codegen::{Codegen, CodegenOptions},
     frontend::ast::TopLevel,
     jit::Jit,
 };
-
 use clap::Parser;
 use inkwell::{
     OptimizationLevel,
     context::Context,
     targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine},
 };
+use std::path::PathBuf;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -100,7 +98,7 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
                     println!("========= Evaluate ========= (stdout)");
                     println!("ans = {}", result);
                 } else {
-                    eprintln!("====== Evaluate Failed ====== (stdout)");
+                    eprintln!("====== Evaluate Failed ====== (stderr)");
                     eprintln!("cannot find {}", anon_name);
                 }
             }

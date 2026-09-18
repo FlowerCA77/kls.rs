@@ -4,13 +4,11 @@ pub mod optimize;
 pub mod top_level;
 
 use crate::frontend::ast::PrototypeAST;
-
-use std::collections::HashMap;
-
 use inkwell::{
     builder::Builder, context::Context, module::Module, targets::TargetMachine,
     values::BasicValueEnum,
 };
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CodegenOptions {

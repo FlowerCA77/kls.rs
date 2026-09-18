@@ -1,7 +1,8 @@
-use crate::Result;
-use crate::codegen::Codegen;
-use crate::frontend::ast::ExprAST;
-
+use crate::{
+    Result,
+    codegen::Codegen,
+    frontend::ast::{ExprAST, FunctionName},
+};
 use inkwell::{
     FloatPredicate,
     values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind},
@@ -19,31 +20,134 @@ impl<'ctx> Codegen<'ctx> {
             .ok_or_else(|| format!("unknown variable: {}", name).into())
     }
 
+    fn compile_unary(&mut self, op: &str, operand: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+        let v = self.compile_expr(operand)?.into_float_value();
+
+        let value = match op {
+            "+" => v,
+
+            "-" => {
+                let zero = self.context.f64_type().const_float(0.0);
+                self.builder.build_float_sub(zero, v, "negtmp")?
+            }
+
+            _ => {
+                let llvm_name = FunctionName::Unary(op.to_string()).llvm_name();
+
+                let function = if let Some(f) = self.module.get_function(&llvm_name) {
+                    f
+                } else if let Some(proto) = self.function_protos.get(&llvm_name).cloned() {
+                    self.compile_prototype(&proto)?
+                } else {
+                    return Err(format!("undefined unary operator: {}", op).into());
+                };
+
+                let call = self.builder.build_call(function, &[v.into()], "optmp")?;
+
+                match call.try_as_basic_value() {
+                    ValueKind::Basic(bv) => bv.into_float_value(),
+                    ValueKind::Instruction(_) => {
+                        return Err(format!("operator {} returns void", op).into());
+                    }
+                }
+            }
+        };
+        Ok(value.into())
+    }
+
     fn compile_binary(
         &mut self,
-        op: char,
+        op: &str,
         lhs: &ExprAST,
         rhs: &ExprAST,
     ) -> Result<BasicValueEnum<'ctx>> {
         let x: FloatValue = self.compile_expr(lhs)?.into_float_value();
         let y: FloatValue = self.compile_expr(rhs)?.into_float_value();
+
         let value: FloatValue = match op {
-            '+' => self.builder.build_float_add(x, y, "addtmp")?.into(),
-            '-' => self.builder.build_float_sub(x, y, "subtmp")?.into(),
-            '*' => self.builder.build_float_mul(x, y, "multmp")?.into(),
-            '/' => self.builder.build_float_div(x, y, "divtmp")?.into(),
-            '<' => {
+            "+" => self.builder.build_float_add(x, y, "addtmp")?.into(),
+            "-" => self.builder.build_float_sub(x, y, "subtmp")?.into(),
+            "*" => self.builder.build_float_mul(x, y, "multmp")?.into(),
+            "/" => self.builder.build_float_div(x, y, "divtmp")?.into(),
+
+            "<" => {
                 let cmp = self
                     .builder
                     .build_float_compare(FloatPredicate::ULT, x, y, "cmptmp")?;
+
                 let bool_as_float = self.builder.build_unsigned_int_to_float(
                     cmp,
                     self.context.f64_type(),
                     "booltmp",
                 )?;
+
                 bool_as_float.into()
             }
-            _ => return Err(format!("unknown operator: {}", op).into()),
+
+            "<=" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::ULE, x, y, "cmptmp")?;
+
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+
+                bool_as_float.into()
+            }
+
+            ">" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UGT, x, y, "cmptmp")?;
+
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+
+                bool_as_float.into()
+            }
+
+            ">=" => {
+                let cmp = self
+                    .builder
+                    .build_float_compare(FloatPredicate::UGE, x, y, "cmptmp")?;
+
+                let bool_as_float = self.builder.build_unsigned_int_to_float(
+                    cmp,
+                    self.context.f64_type(),
+                    "booltmp",
+                )?;
+
+                bool_as_float.into()
+            }
+
+            _ => {
+                let llvm_name = FunctionName::Binary(op.to_string()).llvm_name();
+
+                let function = if let Some(f) = self.module.get_function(&llvm_name) {
+                    f
+                } else if let Some(proto) = self.function_protos.get(&llvm_name).cloned() {
+                    self.compile_prototype(&proto)?
+                } else {
+                    return Err(format!("undefined binary operator: {}", op).into());
+                };
+
+                let call = self
+                    .builder
+                    .build_call(function, &[x.into(), y.into()], "optmp")?;
+
+                match call.try_as_basic_value() {
+                    ValueKind::Basic(v) => v.into_float_value(),
+                    ValueKind::Instruction(_) => {
+                        return Err(format!("operator {} returns void", op).into());
+                    }
+                }
+            }
         };
 
         if self.options.fast_math {
@@ -207,7 +311,8 @@ impl<'ctx> Codegen<'ctx> {
         match expr {
             ExprAST::Number(n) => self.compile_number(*n),
             ExprAST::Variable(name) => self.compile_variable(name),
-            ExprAST::Binary { op, lhs, rhs } => self.compile_binary(*op, lhs, rhs),
+            ExprAST::Unary { op, operand } => self.compile_unary(op.as_str(), operand),
+            ExprAST::Binary { op, lhs, rhs } => self.compile_binary(op.as_str(), lhs, rhs),
             ExprAST::Call { callee, args } => self.compile_call(callee, args),
             ExprAST::If {
                 cond,

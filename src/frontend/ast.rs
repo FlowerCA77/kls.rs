@@ -1,11 +1,13 @@
-pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
-
 #[derive(Debug, Clone)]
 pub enum ExprAST {
     Number(f64),
     Variable(String),
+    Unary {
+        op: String,
+        operand: Box<ExprAST>,
+    },
     Binary {
-        op: char,
+        op: String,
         lhs: Box<ExprAST>,
         rhs: Box<ExprAST>,
     },
@@ -27,9 +29,36 @@ pub enum ExprAST {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunctionName {
+    Ident(String),
+    Unary(String),
+    Binary(String),
+}
+
+impl FunctionName {
+    pub fn llvm_name(&self) -> String {
+        match self {
+            FunctionName::Ident(s) => s.clone(),
+            FunctionName::Unary(op) => format!(
+                "unary_{}",
+                op.chars()
+                    .map(|c| format!("{:02x}", c as u32))
+                    .collect::<String>()
+            ),
+            FunctionName::Binary(op) => format!(
+                "binary_{}",
+                op.chars()
+                    .map(|c| format!("{:02x}", c as u32))
+                    .collect::<String>()
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PrototypeAST {
-    pub(crate) name: String,
+    pub(crate) name: FunctionName,
     pub(crate) args: Vec<String>,
 }
 

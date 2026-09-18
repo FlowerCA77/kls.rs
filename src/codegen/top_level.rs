@@ -1,6 +1,8 @@
-use crate::Result;
-use crate::codegen::Codegen;
-use crate::frontend::ast::{FunctionAST, PrototypeAST, TopLevel};
+use crate::{
+    Result,
+    codegen::Codegen,
+    frontend::ast::{FunctionAST, FunctionName, PrototypeAST, TopLevel},
+};
 
 impl<'ctx> Codegen<'ctx> {
     pub(crate) fn compile_top_level(&mut self, item: &TopLevel) -> Result<Option<String>> {
@@ -23,7 +25,7 @@ impl<'ctx> Codegen<'ctx> {
                 let name = format!("__anon_expr_{}", self.anon_counter);
                 let func = FunctionAST {
                     proto: PrototypeAST {
-                        name: name.clone(),
+                        name: FunctionName::Ident(name.clone()),
                         args: vec![],
                     },
                     body: e.clone(),

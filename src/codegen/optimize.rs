@@ -1,6 +1,4 @@
-use crate::Result;
-use crate::codegen::Codegen;
-
+use crate::{Result, codegen::Codegen};
 use inkwell::passes::PassBuilderOptions;
 
 impl<'ctx> Codegen<'ctx> {
