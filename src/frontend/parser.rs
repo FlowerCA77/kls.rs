@@ -1,5 +1,4 @@
 use crate::frontend::ast::{ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
-
 use chumsky::{
     error::Rich,
     pratt::{infix, left, prefix},
@@ -7,11 +6,11 @@ use chumsky::{
 };
 
 pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
-pub(crate) const BUILTIN_UNARY_OPS: &[char] = &['+', '-'];
-pub(crate) const BUILTIN_BINARY_OPS: &[char] = &['+', '-', '*', '/', '<', '>'];
+pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
+pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">="];
 
 fn is_op_char(c: char) -> bool {
-    "+-*/<>=&|^~!%@$?".contains(c)
+    "+-*/<>=&|^~!%@$?_".contains(c)
 }
 
 fn create_identifier_parser<'src>()
@@ -24,10 +23,15 @@ fn create_identifier_parser<'src>()
 fn create_prototype_parser<'src>()
 -> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
     let op_name = just('(')
-        .ignore_then(any::<&str, extra::Err<Rich<'src, char>>>().filter(|c: &char| is_op_char(*c)))
-        .then(just(',').ignore_then(text::int(10).padded()).or_not())
+        .ignore_then(
+            any::<&str, extra::Err<Rich<'src, char>>>()
+                .filter(|c: &char| is_op_char(*c))
+                .repeated()
+                .at_least(1)
+                .to_slice(),
+        )
         .then_ignore(just(')'))
-        .map(|(op, prec)| (op, prec.map(|s| s.parse::<u8>().unwrap())));
+        .map(|op: &str| op.to_string());
 
     let args = text::ident()
         .map(|s: &str| s.to_string())
@@ -43,19 +47,19 @@ fn create_prototype_parser<'src>()
 
     let op_def = op_name
         .then(args)
-        .try_map(|((op, prec), args), span| match args.len() {
+        .try_map(|(op, args), span| match args.len() {
             1 => {
-                if BUILTIN_UNARY_OPS.contains(&op) {
+                if BUILTIN_UNARY_OPS.contains(&op.as_str()) {
                     Err(Rich::custom(span, format!("{op} is a builtin operator")))
                 } else {
-                    Ok((FunctionName::Unary(op, prec.unwrap_or(30)), args))
+                    Ok((FunctionName::Unary(op), args))
                 }
             }
             2 => {
-                if BUILTIN_BINARY_OPS.contains(&op) {
+                if BUILTIN_BINARY_OPS.contains(&op.as_str()) {
                     Err(Rich::custom(span, format!("{op} is a builtin operator")))
                 } else {
-                    Ok((FunctionName::Binary(op, prec.unwrap_or(20)), args))
+                    Ok((FunctionName::Binary(op), args))
                 }
             }
             n => Err(Rich::custom(
@@ -152,11 +156,11 @@ fn create_expr_parser<'src>()
         .padded();
 
         atom_parser.pratt((
-            prefix(30, just('-'), |_, rhs, _| ExprAST::Unary {
+            prefix(50, just('-'), |_, rhs, _| ExprAST::Unary {
                 op: "-".to_string(),
                 operand: Box::new(rhs),
             }),
-            prefix(30, just('+'), |_, rhs, _| ExprAST::Unary {
+            prefix(50, just('+'), |_, rhs, _| ExprAST::Unary {
                 op: "+".to_string(),
                 operand: Box::new(rhs),
             }),
@@ -200,6 +204,31 @@ fn create_expr_parser<'src>()
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),
+            prefix(
+                50,
+                any::<&str, extra::Err<Rich<'src, char>>>()
+                    .filter(|c: &char| is_op_char(*c))
+                    .repeated()
+                    .at_least(1)
+                    .to_slice(),
+                |op: &str, rhs, _| ExprAST::Unary {
+                    op: op.to_string(),
+                    operand: Box::new(rhs),
+                },
+            ),
+            infix(
+                left(30),
+                any::<&str, extra::Err<Rich<'src, char>>>()
+                    .filter(|c: &char| is_op_char(*c))
+                    .repeated()
+                    .at_least(1)
+                    .to_slice(),
+                |lhs, op: &str, rhs, _| ExprAST::Binary {
+                    op: op.to_string(),
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                },
+            ),
         ))
     })
     .padded()

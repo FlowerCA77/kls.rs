@@ -1,7 +1,8 @@
-use crate::Result;
-use crate::codegen::Codegen;
-use crate::frontend::ast::{FunctionAST, PrototypeAST};
-
+use crate::{
+    Result,
+    codegen::Codegen,
+    frontend::ast::{FunctionAST, PrototypeAST},
+};
 use inkwell::values::FunctionValue;
 
 impl<'ctx> Codegen<'ctx> {
@@ -17,6 +18,7 @@ impl<'ctx> Codegen<'ctx> {
             let f64_type = self.context.f64_type();
             let param_types: Vec<_> = proto.args.iter().map(|_| f64_type.into()).collect();
             let fn_type = f64_type.fn_type(&param_types, false);
+
             self.module.add_function(&llvm_name, fn_type, None)
         };
 
@@ -35,6 +37,7 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.position_at_end(entry);
 
         self.named_values.clear();
+
         for (i, arg) in function.get_param_iter().enumerate() {
             self.named_values.insert(func.proto.args[i].clone(), arg);
         }
@@ -52,7 +55,7 @@ impl<'ctx> Codegen<'ctx> {
                     Ok(function)
                 } else {
                     unsafe { function.delete() };
-                    return Err(format!("invalid function: {}", func.proto.name).into());
+                    return Err(format!("invalid function: {}", func.proto.name.llvm_name()).into());
                 }
             }
             Err(e) => {

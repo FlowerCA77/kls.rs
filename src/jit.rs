@@ -1,5 +1,4 @@
 use crate::Result;
-
 use inkwell::{
     OptimizationLevel,
     context::Context,
