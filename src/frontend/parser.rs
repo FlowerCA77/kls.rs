@@ -2,13 +2,13 @@ use chumsky::error::Rich;
 use chumsky::pratt::{infix, left, prefix};
 use chumsky::prelude::*;
 
-use crate::frontend::ast::{ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
+use crate::frontend::ast::{Binding, ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
 
-pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
-pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
-pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">="];
+pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "let", "if", "then", "else", "for", "in"];
+pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+", "="];
+pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "=", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
-fn is_op_char(c: char) -> bool { "+-*/<>=&|^~!%@$?_".contains(c) }
+fn is_op_char(c: char) -> bool { "+-*/\\<>=&|^~!%@$?_".contains(c) }
 
 fn create_identifier_parser<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
     text::ident()
@@ -79,26 +79,37 @@ fn create_ext_parser<'src>() -> impl Parser<'src, &'src str, PrototypeAST, extra
         .padded()
 }
 
+fn create_let_parser<'src, P>(expr: P) -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone
+where P: Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
+    let binding_parser = text::ident()
+        .padded()
+        .map(|s: &str| s.to_string())
+        .then(just('=').padded().ignore_then(expr.clone()).map(Box::new).or_not())
+        .map(|(name, init)| Binding { name, init });
+
+    let bindings_parser = binding_parser.separated_by(just(',')).collect::<Vec<Binding>>();
+
+    let let_in_parser = text::keyword("let")
+        .padded()
+        .ignore_then(bindings_parser.clone())
+        .then_ignore(text::keyword("in").padded())
+        .then(expr.clone())
+        .map(|(bindings, body)| ExprAST::Letin { bindings, body: Box::new(body) });
+
+    let let_stmt_parser = text::keyword("let")
+        .padded()
+        .ignore_then(bindings_parser)
+        .map(|bindings| ExprAST::Let(bindings));
+
+    let_in_parser.or(let_stmt_parser)
+}
+
 fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
     recursive(|expr| {
         let number_parser = text::int(10)
             .then(just('.').ignore_then(text::digits(10)).or_not())
             .to_slice()
             .map(|s: &'src str| ExprAST::Number(s.parse().unwrap()));
-
-        let identifier_parser = create_identifier_parser();
-
-        let call_parser = identifier_parser
-            .clone()
-            .then(
-                expr.clone()
-                    .separated_by(just(','))
-                    .collect::<Vec<ExprAST>>()
-                    .delimited_by(just('('), just(')')),
-            )
-            .map(|(callee, args)| ExprAST::Call { callee, args });
-
-        let variable_parser = identifier_parser.map(ExprAST::Variable);
 
         let if_parser = text::keyword("if")
             .padded()
@@ -132,6 +143,22 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
                 e_body: Box::new(e_body),
             });
 
+        let let_parser = create_let_parser(expr.clone());
+
+        let identifier_parser = create_identifier_parser();
+
+        let call_parser = identifier_parser
+            .clone()
+            .then(
+                expr.clone()
+                    .separated_by(just(','))
+                    .collect::<Vec<ExprAST>>()
+                    .delimited_by(just('('), just(')')),
+            )
+            .map(|(callee, args)| ExprAST::Call { callee, args });
+
+        let variable_parser = identifier_parser.map(ExprAST::Variable);
+
         let block_parser = expr
             .clone()
             .separated_by(just(";").or_not())
@@ -139,14 +166,17 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
             .delimited_by(just('{'), just('}'))
             .map(ExprAST::Block);
 
+        let enclosed_parser = expr.clone().delimited_by(just('('), just(')'));
+
         let atom_parser = choice((
             number_parser,
             if_parser,
             for_parser,
+            let_parser,
             call_parser,
             variable_parser,
             block_parser,
-            expr.clone().delimited_by(just('('), just(')')),
+            enclosed_parser,
         ))
         .padded();
 
@@ -159,6 +189,11 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
                 op: "+".to_string(),
                 operand: Box::new(rhs),
             }),
+            infix(left(10), just("<=>"), |lhs, _, rhs, _| ExprAST::Binary {
+                op: "<=>".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
             infix(left(10), just("<="), |lhs, _, rhs, _| ExprAST::Binary {
                 op: "<=".to_string(),
                 lhs: Box::new(lhs),
@@ -166,6 +201,16 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
             }),
             infix(left(10), just(">="), |lhs, _, rhs, _| ExprAST::Binary {
                 op: ">=".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            infix(left(10), just("=="), |lhs, _, rhs, _| ExprAST::Binary {
+                op: "==".to_string(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            infix(left(10), just("!="), |lhs, _, rhs, _| ExprAST::Binary {
+                op: "!=".to_string(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
             }),

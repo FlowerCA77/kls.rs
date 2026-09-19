@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use inkwell::values::FunctionValue;
 
 use crate::Result;
-use crate::codegen::Codegen;
+use crate::codegen::{BindingValue, Codegen};
 use crate::frontend::ast::{FunctionAST, PrototypeAST};
 
 impl<'ctx> Codegen<'ctx> {
@@ -29,21 +31,28 @@ impl<'ctx> Codegen<'ctx> {
         let function = self.compile_prototype(&func.proto)?;
 
         let entry = self.context.append_basic_block(function, "entry");
-
         self.builder.position_at_end(entry);
 
-        self.named_values.clear();
+        self.scopes.push(HashMap::new());
 
         for (i, arg) in function.get_param_iter().enumerate() {
-            self.named_values.insert(func.proto.args[i].clone(), arg);
+            let alloca = self.create_entry_block_alloca(&func.proto.args[i])?;
+            self.builder.build_store(alloca, arg)?;
+            self.scopes
+                .last_mut()
+                .ok_or("compile error")?
+                .insert(func.proto.args[i].clone(), BindingValue::Alloca(alloca));
         }
 
         match self.compile_expr(&func.body) {
             Ok(body) => {
                 if let Err(e) = self.builder.build_return(Some(&body)) {
+                    self.scopes.pop();
                     unsafe { function.delete() };
                     return Err(e.into());
                 }
+
+                self.scopes.pop();
 
                 if function.verify(true) {
                     self.function_protos
@@ -55,6 +64,7 @@ impl<'ctx> Codegen<'ctx> {
                 }
             }
             Err(e) => {
+                self.scopes.pop();
                 unsafe { function.delete() };
                 return Err(e);
             }

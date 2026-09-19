@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use inkwell::FloatPredicate;
 use inkwell::values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind};
 
 use crate::Result;
-use crate::codegen::Codegen;
-use crate::frontend::ast::{ExprAST, FunctionName};
+use crate::codegen::{BindingValue, Codegen};
+use crate::frontend::ast::{Binding, ExprAST, FunctionName};
 
 impl<'ctx> Codegen<'ctx> {
     fn compile_number(&mut self, n: f64) -> Result<BasicValueEnum<'ctx>> {
@@ -11,10 +13,12 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     fn compile_variable(&mut self, name: &str) -> Result<BasicValueEnum<'ctx>> {
-        self.named_values
-            .get(name)
-            .copied()
-            .ok_or_else(|| format!("unknown variable: {}", name).into())
+        let binding = self.lookup_variable(name).ok_or(format!("unknown variable {}", name))?;
+
+        match binding {
+            BindingValue::Value(v) => Ok(v),
+            BindingValue::Alloca(ptr) => Ok(self.builder.build_load(self.context.f64_type(), ptr, name)?),
+        }
     }
 
     fn compile_unary(&mut self, op: &str, operand: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
@@ -52,9 +56,37 @@ impl<'ctx> Codegen<'ctx> {
         Ok(value.into())
     }
 
+    fn compile_comparison(
+        &self,
+        predicate: FloatPredicate,
+        x: FloatValue<'ctx>,
+        y: FloatValue<'ctx>,
+        name: &str,
+    ) -> Result<FloatValue<'ctx>> {
+        let compare_float = self.builder.build_unsigned_int_to_float(
+            self.builder.build_float_compare(predicate, x, y, name)?,
+            self.context.f64_type(),
+            "booltmp",
+        )?;
+
+        if self.options.fast_math {
+            return Ok(compare_float);
+        }
+
+        Ok(self
+            .builder
+            .build_select(
+                self.builder.build_float_compare(FloatPredicate::UNO, x, y, "isnan")?,
+                self.context.f64_type().const_float(f64::NAN),
+                compare_float,
+                "cmp_result",
+            )?
+            .into_float_value())
+    }
+
     fn compile_binary(&mut self, op: &str, lhs: &ExprAST, rhs: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
-        let x: FloatValue = self.compile_expr(lhs)?.into_float_value();
-        let y: FloatValue = self.compile_expr(rhs)?.into_float_value();
+        let x = self.compile_expr(lhs)?.into_float_value();
+        let y = self.compile_expr(rhs)?.into_float_value();
 
         let value: FloatValue = match op {
             "+" => self.builder.build_float_add(x, y, "addtmp")?.into(),
@@ -62,45 +94,36 @@ impl<'ctx> Codegen<'ctx> {
             "*" => self.builder.build_float_mul(x, y, "multmp")?.into(),
             "/" => self.builder.build_float_div(x, y, "divtmp")?.into(),
 
-            "<" => {
-                let cmp = self.builder.build_float_compare(FloatPredicate::ULT, x, y, "cmptmp")?;
+            "<" => self.compile_comparison(FloatPredicate::OLT, x, y, "lttmp")?.into(),
+            "<=" => self.compile_comparison(FloatPredicate::OLE, x, y, "leptmp")?.into(),
+            ">" => self.compile_comparison(FloatPredicate::OGT, x, y, "gttmp")?.into(),
+            ">=" => self.compile_comparison(FloatPredicate::OGE, x, y, "getmp")?.into(),
+            "==" => self.compile_comparison(FloatPredicate::OEQ, x, y, "eqtmp")?.into(),
+            "!=" => self.compile_comparison(FloatPredicate::UNE, x, y, "netmp")?.into(),
 
-                let bool_as_float =
+            "<=>" => self
+                .builder
+                .build_select(
+                    self.builder.build_float_compare(FloatPredicate::UNO, x, y, "arenan")?,
+                    self.context.f64_type().const_float(f64::NAN),
                     self.builder
-                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
-
-                bool_as_float.into()
-            }
-
-            "<=" => {
-                let cmp = self.builder.build_float_compare(FloatPredicate::ULE, x, y, "cmptmp")?;
-
-                let bool_as_float =
-                    self.builder
-                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
-
-                bool_as_float.into()
-            }
-
-            ">" => {
-                let cmp = self.builder.build_float_compare(FloatPredicate::UGT, x, y, "cmptmp")?;
-
-                let bool_as_float =
-                    self.builder
-                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
-
-                bool_as_float.into()
-            }
-
-            ">=" => {
-                let cmp = self.builder.build_float_compare(FloatPredicate::UGE, x, y, "cmptmp")?;
-
-                let bool_as_float =
-                    self.builder
-                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
-
-                bool_as_float.into()
-            }
+                        .build_select(
+                            self.builder.build_float_compare(FloatPredicate::OGT, x, y, "isgt")?,
+                            self.context.f64_type().const_float(1.0),
+                            self.builder
+                                .build_select(
+                                    self.builder.build_float_compare(FloatPredicate::OLT, x, y, "islt")?,
+                                    self.context.f64_type().const_float(-1.0),
+                                    self.context.f64_type().const_float(0.0),
+                                    "ltoeq",
+                                )?
+                                .into_float_value(),
+                            "isordered",
+                        )?
+                        .into_float_value(),
+                    "tricmp",
+                )?
+                .into_float_value(),
 
             _ => {
                 let llvm_name = FunctionName::Binary(op.to_string()).llvm_name();
@@ -173,9 +196,9 @@ impl<'ctx> Codegen<'ctx> {
         let function = self
             .builder
             .get_insert_block()
-            .ok_or("cannot insert the if-entry basic block")?
+            .ok_or("llvm error")?
             .get_parent()
-            .ok_or("cannot get the parent of if-entry basic block")?;
+            .ok_or("llvm error")?;
 
         let then_bb = self.context.append_basic_block(function, "then");
         let else_bb = self.context.append_basic_block(function, "else");
@@ -186,18 +209,12 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.position_at_end(then_bb);
         let then_val = self.compile_expr(e_true)?.into_float_value();
         self.builder.build_unconditional_branch(ifcont_bb)?;
-        let then_bb = self
-            .builder
-            .get_insert_block()
-            .ok_or("cannot insert basic block of then-branch")?;
+        let then_bb = self.builder.get_insert_block().ok_or("llvm error")?;
 
         self.builder.position_at_end(else_bb);
         let else_val = self.compile_expr(e_false)?.into_float_value();
         self.builder.build_unconditional_branch(ifcont_bb)?;
-        let else_bb = self
-            .builder
-            .get_insert_block()
-            .ok_or("cannot insert basic block of else-branch")?;
+        let else_bb = self.builder.get_insert_block().ok_or("llvm error")?;
 
         self.builder.position_at_end(ifcont_bb);
         let phi = self.builder.build_phi(self.context.f64_type(), "iftmp")?;
@@ -219,13 +236,10 @@ impl<'ctx> Codegen<'ctx> {
         let function = self
             .builder
             .get_insert_block()
-            .ok_or("cannot insert the for-entry basic block")?
+            .ok_or("llvm error")?
             .get_parent()
-            .ok_or("cannot get the parent of for-entry basic block")?;
-        let preheader_bb = self
-            .builder
-            .get_insert_block()
-            .ok_or("cannot insert the preheader basic block")?;
+            .ok_or("llvm error")?;
+        let preheader_bb = self.builder.get_insert_block().ok_or("llvm error")?;
 
         let loop_bb = self.context.append_basic_block(function, "loop");
         self.builder.build_unconditional_branch(loop_bb)?;
@@ -234,7 +248,11 @@ impl<'ctx> Codegen<'ctx> {
         let variable = self.builder.build_phi(self.context.f64_type(), var)?;
         variable.add_incoming(&[(&init_val, preheader_bb)]);
 
-        let old_binding = self.named_values.insert(var.to_string(), variable.as_basic_value());
+        self.scopes.push(HashMap::new());
+        self.scopes
+            .last_mut()
+            .ok_or("scope error")?
+            .insert(var.to_string(), BindingValue::Value(variable.as_basic_value()));
 
         let cond_val = self.compile_expr(e_cond)?.into_float_value();
         let zero = self.context.f64_type().const_float(0.0);
@@ -251,34 +269,87 @@ impl<'ctx> Codegen<'ctx> {
 
         let step_val = self.compile_expr(e_step)?.into_float_value();
 
-        let body_end_bb = self
-            .builder
-            .get_insert_block()
-            .ok_or("cannot insert basic block after for-loop body")?;
+        let body_end_bb = self.builder.get_insert_block().ok_or("llvm error")?;
         self.builder.build_unconditional_branch(loop_bb)?;
         variable.add_incoming(&[(&step_val, body_end_bb)]);
 
+        self.scopes.pop();
+
         self.builder.position_at_end(after_bb);
-        match old_binding {
-            Some(old) => self.named_values.insert(var.to_string(), old),
-            None => self.named_values.remove(var),
-        };
 
         Ok(self.context.f64_type().const_float(0.0).into())
     }
 
     fn compile_block(&mut self, exprs: &[ExprAST]) -> Result<BasicValueEnum<'ctx>> {
-        if exprs.is_empty() {
-            return Ok(self.context.f64_type().const_float(0.0).into());
-        }
+        self.scopes.push(HashMap::new());
+
         let mut last = None;
+
         for expr in exprs {
             last = Some(self.compile_expr(expr)?);
         }
-        Ok(last.unwrap())
+
+        self.scopes.pop();
+
+        Ok(last.unwrap_or_else(|| self.context.f64_type().const_float(0.0).into()))
     }
 
-    pub(crate) fn compile_expr(&mut self, expr: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+    pub fn compile_var_stmt(&mut self, bindings: &[Binding]) -> Result<BasicValueEnum<'ctx>> {
+        for binding in bindings {
+            let init_val = match &binding.init {
+                Some(e) => self.compile_expr(e)?.into_float_value(),
+                None => self.context.f64_type().const_float(f64::NAN),
+            };
+
+            let alloca = self.create_entry_block_alloca(&binding.name)?;
+            self.builder.build_store(alloca, init_val)?;
+            self.scopes
+                .last_mut()
+                .ok_or("compile error")?
+                .insert(binding.name.clone(), BindingValue::Alloca(alloca));
+        }
+
+        Ok(self.context.f64_type().const_float(0.0).into())
+    }
+
+    pub fn compile_var_expr(&mut self, bindings: &[Binding], body: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+        self.scopes.push(HashMap::new());
+
+        for binding in bindings {
+            let init_val = match &binding.init {
+                Some(e) => self.compile_expr(e)?.into_float_value(),
+                None => self.context.f64_type().const_float(f64::NAN),
+            };
+
+            let alloca = self.create_entry_block_alloca(&binding.name)?;
+            self.builder.build_store(alloca, init_val)?;
+            self.scopes
+                .last_mut()
+                .ok_or("compile error")?
+                .insert(binding.name.clone(), BindingValue::Alloca(alloca));
+        }
+
+        let result = self.compile_expr(body)?;
+        self.scopes.pop();
+        Ok(result)
+    }
+
+    fn compile_assign(&mut self, name: &str, value: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+        let binding = self
+            .lookup_variable(name)
+            .ok_or(format!("unknown variable: {}", name))?;
+
+        match binding {
+            BindingValue::Alloca(ptr) => {
+                let value = self.compile_expr(value)?.into_float_value();
+                self.builder.build_store(ptr, value)?;
+                Ok(value.into())
+            }
+            BindingValue::Value(_) => Err(format!("cannot assign to temporary binding {}", name).into()),
+        }
+    }
+
+    pub fn compile_expr(&mut self, expr: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
         match expr {
             ExprAST::Number(n) => self.compile_number(*n),
             ExprAST::Variable(name) => self.compile_variable(name),
@@ -294,6 +365,9 @@ impl<'ctx> Codegen<'ctx> {
                 e_body,
             } => self.compile_for(var, e_init, e_cond, e_step, e_body),
             ExprAST::Block(exprs) => self.compile_block(exprs),
+            ExprAST::Let(bindings) => self.compile_var_stmt(bindings),
+            ExprAST::Letin { bindings, body } => self.compile_var_expr(bindings, body),
+            ExprAST::Assign { name, value } => self.compile_assign(name.as_str(), value),
         }
     }
 }

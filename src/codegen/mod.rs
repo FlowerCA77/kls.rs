@@ -9,13 +9,20 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::TargetMachine;
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 
+use crate::Result;
 use crate::frontend::ast::PrototypeAST;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CodegenOptions {
     pub fast_math: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BindingValue<'ctx> {
+    Alloca(PointerValue<'ctx>),
+    Value(BasicValueEnum<'ctx>),
 }
 
 pub(crate) struct Codegen<'ctx> {
@@ -24,7 +31,7 @@ pub(crate) struct Codegen<'ctx> {
     pub(crate) module: Module<'ctx>,
     pub(crate) builder: Builder<'ctx>,
     pub(crate) target_machine: TargetMachine,
-    pub(crate) named_values: HashMap<String, BasicValueEnum<'ctx>>,
+    pub(crate) scopes: Vec<HashMap<String, BindingValue<'ctx>>>,
     pub(crate) function_protos: HashMap<String, PrototypeAST>,
     pub(crate) options: CodegenOptions,
 }
@@ -38,7 +45,7 @@ impl<'ctx> Codegen<'ctx> {
     ) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
-        let named_values = HashMap::new();
+        let scopes = Vec::new();
         let function_protos = HashMap::new();
 
         module.set_triple(&target_machine.get_triple());
@@ -50,7 +57,7 @@ impl<'ctx> Codegen<'ctx> {
             module,
             builder,
             target_machine,
-            named_values,
+            scopes,
             function_protos,
             options,
         }
@@ -72,4 +79,35 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     pub(crate) fn get_target_machine(&self) -> &TargetMachine { &self.target_machine }
+
+    pub(crate) fn lookup_variable(&self, name: &str) -> Option<BindingValue<'ctx>> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(b) = scope.get(name) {
+                return Some(*b);
+            }
+        }
+        None
+    }
+
+    pub(crate) fn create_entry_block_alloca(&self, name: &str) -> Result<PointerValue<'ctx>> {
+        let function = self
+            .builder
+            .get_insert_block()
+            .ok_or("llvm error")?
+            .get_parent()
+            .ok_or("llvm error")?;
+
+        let entry = function.get_first_basic_block().ok_or("llvm error")?;
+
+        let tmp_builder = self.context.create_builder();
+
+        match entry.get_first_instruction() {
+            Some(first) => tmp_builder.position_before(&first),
+            None => tmp_builder.position_at_end(entry),
+        }
+
+        tmp_builder
+            .build_alloca(self.context.f64_type(), name)
+            .map_err(Into::into)
+    }
 }

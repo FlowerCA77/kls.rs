@@ -1,4 +1,10 @@
 #[derive(Debug, Clone)]
+pub struct Binding {
+    pub(crate) name: String,
+    pub(crate) init: Option<Box<ExprAST>>,
+}
+
+#[derive(Debug, Clone)]
 pub enum ExprAST {
     Number(f64),
     Variable(String),
@@ -26,6 +32,15 @@ pub enum ExprAST {
         e_cond: Box<ExprAST>,
         e_step: Box<ExprAST>,
         e_body: Box<ExprAST>,
+    },
+    Let(Vec<Binding>),
+    Letin {
+        bindings: Vec<Binding>,
+        body: Box<ExprAST>,
+    },
+    Assign {
+        name: String,
+        value: Box<ExprAST>,
     },
     Block(Vec<ExprAST>),
 }
