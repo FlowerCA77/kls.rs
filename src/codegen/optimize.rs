@@ -1,5 +1,7 @@
-use crate::{Result, codegen::Codegen};
 use inkwell::passes::PassBuilderOptions;
+
+use crate::Result;
+use crate::codegen::Codegen;
 
 impl<'ctx> Codegen<'ctx> {
     pub(crate) fn optimize(&self, pipeline: &str) -> Result<()> {

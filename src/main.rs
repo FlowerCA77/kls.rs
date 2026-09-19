@@ -3,18 +3,16 @@ mod frontend;
 mod jit;
 mod repl;
 
-use crate::{
-    codegen::{Codegen, CodegenOptions},
-    frontend::ast::TopLevel,
-    jit::Jit,
-};
-use clap::Parser;
-use inkwell::{
-    OptimizationLevel,
-    context::Context,
-    targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine},
-};
 use std::path::PathBuf;
+
+use clap::Parser;
+use inkwell::OptimizationLevel;
+use inkwell::context::Context;
+use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine};
+
+use crate::codegen::{Codegen, CodegenOptions};
+use crate::frontend::ast::TopLevel;
+use crate::jit::Jit;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -24,9 +22,7 @@ struct ReplContext<'ctx> {
 }
 
 impl<'ctx> ReplContext<'ctx> {
-    fn new(codegen: Codegen<'ctx>, jit: Jit<'ctx>) -> Self {
-        Self { codegen, jit }
-    }
+    fn new(codegen: Codegen<'ctx>, jit: Jit<'ctx>) -> Self { Self { codegen, jit } }
 }
 
 #[derive(Parser, Debug)]
@@ -65,7 +61,7 @@ fn create_target_machine(opt_level: OptimizationLevel) -> TargetMachine {
         .unwrap()
 }
 
-fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationLevel) {
+fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationLevel) -> Result<()> {
     repl::run_repl(|item| {
         let anon_name = repl_ctx
             .codegen
@@ -106,17 +102,17 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
         };
 
         Ok(())
-    });
+    })
 }
 
-fn compile_files(codegen: &mut Codegen, cli: &Cli) {
+fn compile_files(codegen: &mut Codegen, cli: &Cli) -> Result<()> {
     // TODO: compiler
     let _ = codegen;
     let _ = cli;
     todo!("compile files")
 }
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let opt_level = match cli.optimize {
@@ -133,17 +129,17 @@ fn main() {
 
     let target_machine = create_target_machine(opt_level);
 
-    let options = CodegenOptions {
-        fast_math: cli.fast_math,
-    };
+    let options = CodegenOptions { fast_math: cli.fast_math };
 
     let mut codegen = Codegen::new(&context, "kaleidoscope_repl", target_machine, options);
 
     let jit = Jit::new(&context, codegen.get_target_machine(), opt_level).unwrap();
 
     if cli.files.is_empty() {
-        run_repl_mode(&mut ReplContext::new(codegen, jit), &cli, opt_level);
+        run_repl_mode(&mut ReplContext::new(codegen, jit), &cli, opt_level)?;
     } else {
-        compile_files(&mut codegen, &cli);
+        compile_files(&mut codegen, &cli)?;
     }
+
+    Ok(())
 }

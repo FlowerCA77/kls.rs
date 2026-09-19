@@ -1,15 +1,11 @@
-use crate::{
-    Result,
-    codegen::Codegen,
-    frontend::ast::{FunctionAST, PrototypeAST},
-};
 use inkwell::values::FunctionValue;
 
+use crate::Result;
+use crate::codegen::Codegen;
+use crate::frontend::ast::{FunctionAST, PrototypeAST};
+
 impl<'ctx> Codegen<'ctx> {
-    pub(crate) fn compile_prototype(
-        &mut self,
-        proto: &PrototypeAST,
-    ) -> Result<FunctionValue<'ctx>> {
+    pub(crate) fn compile_prototype(&mut self, proto: &PrototypeAST) -> Result<FunctionValue<'ctx>> {
         let llvm_name = proto.name.llvm_name();
 
         let function = if let Some(f) = self.module.get_function(&llvm_name) {
@@ -68,8 +64,7 @@ impl<'ctx> Codegen<'ctx> {
     pub fn compile_extern(&mut self, proto: &PrototypeAST) -> Result<FunctionValue<'ctx>> {
         let function = self.compile_prototype(proto)?;
 
-        self.function_protos
-            .insert(proto.name.llvm_name(), proto.clone());
+        self.function_protos.insert(proto.name.llvm_name(), proto.clone());
 
         Ok(function)
     }

@@ -1,12 +1,9 @@
-use crate::{
-    Result,
-    codegen::Codegen,
-    frontend::ast::{ExprAST, FunctionName},
-};
-use inkwell::{
-    FloatPredicate,
-    values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind},
-};
+use inkwell::FloatPredicate;
+use inkwell::values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind};
+
+use crate::Result;
+use crate::codegen::Codegen;
+use crate::frontend::ast::{ExprAST, FunctionName};
 
 impl<'ctx> Codegen<'ctx> {
     fn compile_number(&mut self, n: f64) -> Result<BasicValueEnum<'ctx>> {
@@ -55,12 +52,7 @@ impl<'ctx> Codegen<'ctx> {
         Ok(value.into())
     }
 
-    fn compile_binary(
-        &mut self,
-        op: &str,
-        lhs: &ExprAST,
-        rhs: &ExprAST,
-    ) -> Result<BasicValueEnum<'ctx>> {
+    fn compile_binary(&mut self, op: &str, lhs: &ExprAST, rhs: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
         let x: FloatValue = self.compile_expr(lhs)?.into_float_value();
         let y: FloatValue = self.compile_expr(rhs)?.into_float_value();
 
@@ -71,57 +63,41 @@ impl<'ctx> Codegen<'ctx> {
             "/" => self.builder.build_float_div(x, y, "divtmp")?.into(),
 
             "<" => {
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::ULT, x, y, "cmptmp")?;
+                let cmp = self.builder.build_float_compare(FloatPredicate::ULT, x, y, "cmptmp")?;
 
-                let bool_as_float = self.builder.build_unsigned_int_to_float(
-                    cmp,
-                    self.context.f64_type(),
-                    "booltmp",
-                )?;
+                let bool_as_float =
+                    self.builder
+                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
 
                 bool_as_float.into()
             }
 
             "<=" => {
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::ULE, x, y, "cmptmp")?;
+                let cmp = self.builder.build_float_compare(FloatPredicate::ULE, x, y, "cmptmp")?;
 
-                let bool_as_float = self.builder.build_unsigned_int_to_float(
-                    cmp,
-                    self.context.f64_type(),
-                    "booltmp",
-                )?;
+                let bool_as_float =
+                    self.builder
+                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
 
                 bool_as_float.into()
             }
 
             ">" => {
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UGT, x, y, "cmptmp")?;
+                let cmp = self.builder.build_float_compare(FloatPredicate::UGT, x, y, "cmptmp")?;
 
-                let bool_as_float = self.builder.build_unsigned_int_to_float(
-                    cmp,
-                    self.context.f64_type(),
-                    "booltmp",
-                )?;
+                let bool_as_float =
+                    self.builder
+                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
 
                 bool_as_float.into()
             }
 
             ">=" => {
-                let cmp = self
-                    .builder
-                    .build_float_compare(FloatPredicate::UGE, x, y, "cmptmp")?;
+                let cmp = self.builder.build_float_compare(FloatPredicate::UGE, x, y, "cmptmp")?;
 
-                let bool_as_float = self.builder.build_unsigned_int_to_float(
-                    cmp,
-                    self.context.f64_type(),
-                    "booltmp",
-                )?;
+                let bool_as_float =
+                    self.builder
+                        .build_unsigned_int_to_float(cmp, self.context.f64_type(), "booltmp")?;
 
                 bool_as_float.into()
             }
@@ -137,9 +113,7 @@ impl<'ctx> Codegen<'ctx> {
                     return Err(format!("undefined binary operator: {}", op).into());
                 };
 
-                let call = self
-                    .builder
-                    .build_call(function, &[x.into(), y.into()], "optmp")?;
+                let call = self.builder.build_call(function, &[x.into(), y.into()], "optmp")?;
 
                 match call.try_as_basic_value() {
                     ValueKind::Basic(v) => v.into_float_value(),
@@ -178,15 +152,10 @@ impl<'ctx> Codegen<'ctx> {
             .into());
         }
 
-        let compiled_args: Result<Vec<_>> = args
-            .iter()
-            .map(|arg| self.compile_expr(arg).map(Into::into))
-            .collect();
+        let compiled_args: Result<Vec<_>> = args.iter().map(|arg| self.compile_expr(arg).map(Into::into)).collect();
         let compiled_args = compiled_args?;
 
-        let call_site = self
-            .builder
-            .build_call(function, &compiled_args, "calltmp")?;
+        let call_site = self.builder.build_call(function, &compiled_args, "calltmp")?;
 
         match call_site.try_as_basic_value() {
             ValueKind::Basic(basic_value) => Ok(basic_value),
@@ -194,17 +163,12 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
-    fn compile_if(
-        &mut self,
-        cond: &ExprAST,
-        e_true: &ExprAST,
-        e_false: &ExprAST,
-    ) -> Result<BasicValueEnum<'ctx>> {
+    fn compile_if(&mut self, cond: &ExprAST, e_true: &ExprAST, e_false: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
         let cond_val = self.compile_expr(cond)?.into_float_value();
         let zero = self.context.f64_type().const_float(0.0);
-        let cmp =
-            self.builder
-                .build_float_compare(FloatPredicate::ONE, cond_val, zero, "ifcond")?;
+        let cmp = self
+            .builder
+            .build_float_compare(FloatPredicate::ONE, cond_val, zero, "ifcond")?;
 
         let function = self
             .builder
@@ -217,8 +181,7 @@ impl<'ctx> Codegen<'ctx> {
         let else_bb = self.context.append_basic_block(function, "else");
         let ifcont_bb = self.context.append_basic_block(function, "ifcont");
 
-        self.builder
-            .build_conditional_branch(cmp, then_bb, else_bb)?;
+        self.builder.build_conditional_branch(cmp, then_bb, else_bb)?;
 
         self.builder.position_at_end(then_bb);
         let then_val = self.compile_expr(e_true)?.into_float_value();
@@ -271,20 +234,17 @@ impl<'ctx> Codegen<'ctx> {
         let variable = self.builder.build_phi(self.context.f64_type(), var)?;
         variable.add_incoming(&[(&init_val, preheader_bb)]);
 
-        let old_binding = self
-            .named_values
-            .insert(var.to_string(), variable.as_basic_value());
+        let old_binding = self.named_values.insert(var.to_string(), variable.as_basic_value());
 
         let cond_val = self.compile_expr(e_cond)?.into_float_value();
         let zero = self.context.f64_type().const_float(0.0);
-        let cmp =
-            self.builder
-                .build_float_compare(FloatPredicate::ONE, cond_val, zero, "loopcond")?;
+        let cmp = self
+            .builder
+            .build_float_compare(FloatPredicate::ONE, cond_val, zero, "loopcond")?;
 
         let body_bb = self.context.append_basic_block(function, "loopbody");
         let after_bb = self.context.append_basic_block(function, "afterloop");
-        self.builder
-            .build_conditional_branch(cmp, body_bb, after_bb)?;
+        self.builder.build_conditional_branch(cmp, body_bb, after_bb)?;
 
         self.builder.position_at_end(body_bb);
         self.compile_expr(e_body)?;
@@ -307,6 +267,17 @@ impl<'ctx> Codegen<'ctx> {
         Ok(self.context.f64_type().const_float(0.0).into())
     }
 
+    fn compile_block(&mut self, exprs: &[ExprAST]) -> Result<BasicValueEnum<'ctx>> {
+        if exprs.is_empty() {
+            return Ok(self.context.f64_type().const_float(0.0).into());
+        }
+        let mut last = None;
+        for expr in exprs {
+            last = Some(self.compile_expr(expr)?);
+        }
+        Ok(last.unwrap())
+    }
+
     pub(crate) fn compile_expr(&mut self, expr: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
         match expr {
             ExprAST::Number(n) => self.compile_number(*n),
@@ -314,11 +285,7 @@ impl<'ctx> Codegen<'ctx> {
             ExprAST::Unary { op, operand } => self.compile_unary(op.as_str(), operand),
             ExprAST::Binary { op, lhs, rhs } => self.compile_binary(op.as_str(), lhs, rhs),
             ExprAST::Call { callee, args } => self.compile_call(callee, args),
-            ExprAST::If {
-                cond,
-                e_true,
-                e_false,
-            } => self.compile_if(cond, e_true, e_false),
+            ExprAST::If { cond, e_true, e_false } => self.compile_if(cond, e_true, e_false),
             ExprAST::For {
                 var,
                 e_init,
@@ -326,6 +293,7 @@ impl<'ctx> Codegen<'ctx> {
                 e_step,
                 e_body,
             } => self.compile_for(var, e_init, e_cond, e_step, e_body),
+            ExprAST::Block(exprs) => self.compile_block(exprs),
         }
     }
 }

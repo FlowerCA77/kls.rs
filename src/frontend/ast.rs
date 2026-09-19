@@ -27,6 +27,7 @@ pub enum ExprAST {
         e_step: Box<ExprAST>,
         e_body: Box<ExprAST>,
     },
+    Block(Vec<ExprAST>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,15 +43,11 @@ impl FunctionName {
             FunctionName::Ident(s) => s.clone(),
             FunctionName::Unary(op) => format!(
                 "unary_{}",
-                op.chars()
-                    .map(|c| format!("{:02x}", c as u32))
-                    .collect::<String>()
+                op.chars().map(|c| format!("{:02x}", c as u32)).collect::<String>()
             ),
             FunctionName::Binary(op) => format!(
                 "binary_{}",
-                op.chars()
-                    .map(|c| format!("{:02x}", c as u32))
-                    .collect::<String>()
+                op.chars().map(|c| format!("{:02x}", c as u32)).collect::<String>()
             ),
         }
     }

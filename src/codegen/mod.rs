@@ -3,12 +3,15 @@ pub mod function;
 pub mod optimize;
 pub mod top_level;
 
-use crate::frontend::ast::PrototypeAST;
-use inkwell::{
-    builder::Builder, context::Context, module::Module, targets::TargetMachine,
-    values::BasicValueEnum,
-};
 use std::collections::HashMap;
+
+use inkwell::builder::Builder;
+use inkwell::context::Context;
+use inkwell::module::Module;
+use inkwell::targets::TargetMachine;
+use inkwell::values::BasicValueEnum;
+
+use crate::frontend::ast::PrototypeAST;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CodegenOptions {
@@ -53,9 +56,7 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
-    pub(crate) fn get_module(&self) -> &Module<'ctx> {
-        &self.module
-    }
+    pub(crate) fn get_module(&self) -> &Module<'ctx> { &self.module }
 
     pub(crate) fn take_module(&mut self) -> Module<'ctx> {
         let module_name = self
@@ -70,7 +71,5 @@ impl<'ctx> Codegen<'ctx> {
         std::mem::replace(&mut self.module, new_module)
     }
 
-    pub(crate) fn get_target_machine(&self) -> &TargetMachine {
-        &self.target_machine
-    }
+    pub(crate) fn get_target_machine(&self) -> &TargetMachine { &self.target_machine }
 }

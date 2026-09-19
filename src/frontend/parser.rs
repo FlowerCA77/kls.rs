@@ -1,27 +1,22 @@
+use chumsky::error::Rich;
+use chumsky::pratt::{infix, left, prefix};
+use chumsky::prelude::*;
+
 use crate::frontend::ast::{ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
-use chumsky::{
-    error::Rich,
-    pratt::{infix, left, prefix},
-    prelude::*,
-};
 
 pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "if", "then", "else", "for", "in"];
 pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
 pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">="];
 
-fn is_op_char(c: char) -> bool {
-    "+-*/<>=&|^~!%@$?_".contains(c)
-}
+fn is_op_char(c: char) -> bool { "+-*/<>=&|^~!%@$?_".contains(c) }
 
-fn create_identifier_parser<'src>()
--> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
+fn create_identifier_parser<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
     text::ident()
         .filter(|s: &&str| !KEYWORDS.contains(s))
         .map(|s: &str| s.to_string())
 }
 
-fn create_prototype_parser<'src>()
--> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
+fn create_prototype_parser<'src>() -> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
     let op_name = just('(')
         .ignore_then(
             any::<&str, extra::Err<Rich<'src, char>>>()
@@ -44,28 +39,23 @@ fn create_prototype_parser<'src>()
         .map(|s: &str| FunctionName::Ident(s.to_string()))
         .then(args.clone());
 
-    let op_def = op_name
-        .then(args)
-        .try_map(|(op, args), span| match args.len() {
-            1 => {
-                if BUILTIN_UNARY_OPS.contains(&op.as_str()) {
-                    Err(Rich::custom(span, format!("{op} is a builtin operator")))
-                } else {
-                    Ok((FunctionName::Unary(op), args))
-                }
+    let op_def = op_name.then(args).try_map(|(op, args), span| match args.len() {
+        1 => {
+            if BUILTIN_UNARY_OPS.contains(&op.as_str()) {
+                Err(Rich::custom(span, format!("{} is a builtin operator", op)))
+            } else {
+                Ok((FunctionName::Unary(op), args))
             }
-            2 => {
-                if BUILTIN_BINARY_OPS.contains(&op.as_str()) {
-                    Err(Rich::custom(span, format!("{op} is a builtin operator")))
-                } else {
-                    Ok((FunctionName::Binary(op), args))
-                }
+        }
+        2 => {
+            if BUILTIN_BINARY_OPS.contains(&op.as_str()) {
+                Err(Rich::custom(span, format!("{} is a builtin operator", op)))
+            } else {
+                Ok((FunctionName::Binary(op), args))
             }
-            n => Err(Rich::custom(
-                span,
-                format!("operator must have 1 or 2 args, got {n}"),
-            )),
-        });
+        }
+        n => Err(Rich::custom(span, format!("operator must have 1 or 2 args, got {}", n))),
+    });
 
     func_def
         .or(op_def)
@@ -82,16 +72,14 @@ fn create_def_parser<'src>()
         .padded()
 }
 
-fn create_ext_parser<'src>()
--> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
+fn create_ext_parser<'src>() -> impl Parser<'src, &'src str, PrototypeAST, extra::Err<Rich<'src, char>>> + Clone {
     text::keyword("extern")
         .padded()
         .ignore_then(create_prototype_parser())
         .padded()
 }
 
-fn create_expr_parser<'src>()
--> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
+fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
     recursive(|expr| {
         let number_parser = text::int(10)
             .then(just('.').ignore_then(text::digits(10)).or_not())
@@ -144,12 +132,20 @@ fn create_expr_parser<'src>()
                 e_body: Box::new(e_body),
             });
 
+        let block_parser = expr
+            .clone()
+            .separated_by(just(";").or_not())
+            .collect::<Vec<ExprAST>>()
+            .delimited_by(just('{'), just('}'))
+            .map(ExprAST::Block);
+
         let atom_parser = choice((
             number_parser,
             if_parser,
             for_parser,
             call_parser,
             variable_parser,
+            block_parser,
             expr.clone().delimited_by(just('('), just(')')),
         ))
         .padded();
@@ -235,8 +231,7 @@ fn create_expr_parser<'src>()
 
 pub(crate) fn create_top_level_parser<'src>()
 -> impl Parser<'src, &'src str, TopLevel, extra::Err<Rich<'src, char>>> + Clone {
-    let def_parser =
-        create_def_parser().map(|(proto, body)| TopLevel::Def(FunctionAST { proto, body }));
+    let def_parser = create_def_parser().map(|(proto, body)| TopLevel::Def(FunctionAST { proto, body }));
 
     let ext_parser = create_ext_parser().map(TopLevel::Extern);
 

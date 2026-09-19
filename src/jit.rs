@@ -1,22 +1,17 @@
+use inkwell::OptimizationLevel;
+use inkwell::context::Context;
+use inkwell::execution_engine::{ExecutionEngine, JitFunction};
+use inkwell::module::Module;
+use inkwell::targets::TargetMachine;
+
 use crate::Result;
-use inkwell::{
-    OptimizationLevel,
-    context::Context,
-    execution_engine::{ExecutionEngine, JitFunction},
-    module::Module,
-    targets::TargetMachine,
-};
 
 pub(crate) struct Jit<'ctx> {
     execution_engine: ExecutionEngine<'ctx>,
 }
 
 impl<'ctx> Jit<'ctx> {
-    pub fn new(
-        context: &'ctx Context,
-        target_machine: &TargetMachine,
-        opt_level: OptimizationLevel,
-    ) -> Result<Self> {
+    pub fn new(context: &'ctx Context, target_machine: &TargetMachine, opt_level: OptimizationLevel) -> Result<Self> {
         let init_module = context.create_module("kaleidoscope_jit_init");
         init_module.set_triple(&target_machine.get_triple());
         init_module.set_data_layout(&target_machine.get_target_data().get_data_layout());

@@ -1,8 +1,6 @@
-use crate::{
-    Result,
-    codegen::Codegen,
-    frontend::ast::{FunctionAST, FunctionName, PrototypeAST, TopLevel},
-};
+use crate::Result;
+use crate::codegen::Codegen;
+use crate::frontend::ast::{FunctionAST, FunctionName, PrototypeAST, TopLevel};
 
 impl<'ctx> Codegen<'ctx> {
     pub(crate) fn compile_top_level(&mut self, item: &TopLevel) -> Result<Option<String>> {
