@@ -7,8 +7,9 @@ use crate::frontend::ast::{Binding, ExprAST, FunctionAST, FunctionName, Program,
 pub(crate) const KEYWORDS: &[&str] = &[
     "def", "extern", "let", "if", "then", "else", "for", "in", "once", "import",
 ];
+pub(crate) const RESERVED_SYMBOLS: &[&str] = &["="];
 pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
-pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "=", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
+pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
 fn is_op_char(c: char) -> bool { "+-*/\\<>=&|^~!%@$?_".contains(c) }
 
@@ -41,22 +42,28 @@ fn create_prototype_parser<'src>() -> impl Parser<'src, &'src str, PrototypeAST,
         .map(|s: &str| FunctionName::Ident(s.to_string()))
         .then(args.clone());
 
-    let op_def = op_name.then(args).try_map(|(op, args), span| match args.len() {
-        1 => {
-            if BUILTIN_UNARY_OPS.contains(&op.as_str()) {
-                Err(Rich::custom(span, format!("{} is a builtin operator", op)))
-            } else {
-                Ok((FunctionName::Unary(op), args))
-            }
+    let op_def = op_name.then(args).try_map(|(op, args), span| {
+        if RESERVED_SYMBOLS.contains(&op.as_str()) {
+            return Err(Rich::custom(span, format!("{} is reserved symbol", op)));
         }
-        2 => {
-            if BUILTIN_BINARY_OPS.contains(&op.as_str()) {
-                Err(Rich::custom(span, format!("{} is a builtin operator", op)))
-            } else {
-                Ok((FunctionName::Binary(op), args))
+
+        match args.len() {
+            1 => {
+                if BUILTIN_UNARY_OPS.contains(&op.as_str()) {
+                    Err(Rich::custom(span, format!("{} is a builtin operator", op)))
+                } else {
+                    Ok((FunctionName::Unary(op), args))
+                }
             }
+            2 => {
+                if BUILTIN_BINARY_OPS.contains(&op.as_str()) {
+                    Err(Rich::custom(span, format!("{} is a builtin operator", op)))
+                } else {
+                    Ok((FunctionName::Binary(op), args))
+                }
+            }
+            n => Err(Rich::custom(span, format!("operator must have 1 or 2 args, got {}", n))),
         }
-        n => Err(Rich::custom(span, format!("operator must have 1 or 2 args, got {}", n))),
     });
 
     func_def
@@ -271,7 +278,7 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
                     .repeated()
                     .at_least(1)
                     .to_slice()
-                    .filter(|s: &&str| !s.contains('=')),
+                    .filter(|s: &&str| *s != "="),
                 |lhs, op: &str, rhs, _| ExprAST::Binary {
                     op: op.to_string(),
                     lhs: Box::new(lhs),
