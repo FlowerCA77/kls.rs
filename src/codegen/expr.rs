@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use inkwell::FloatPredicate;
+use inkwell::module::Linkage;
 use inkwell::values::{BasicValue, BasicValueEnum, FastMathFlags, FloatValue, ValueKind};
 
 use crate::Result;
@@ -19,10 +20,13 @@ impl<'ctx> Codegen<'ctx> {
             BindingValue::Value(v) => Ok(v),
             BindingValue::Alloca(ptr) => Ok(self.builder.build_load(self.context.f64_type(), ptr, name)?),
             BindingValue::Global => {
-                let g = self
-                    .module
-                    .get_global(name)
-                    .ok_or_else(|| format!("global {} not found", name))?;
+                let g = if let Some(g) = self.module.get_global(name) {
+                    g
+                } else {
+                    let g = self.module.add_global(self.context.f64_type(), None, name);
+                    g.set_linkage(Linkage::External);
+                    g
+                };
                 let v = self
                     .builder
                     .build_load(self.context.f64_type(), g.as_pointer_value(), name)?;
@@ -357,7 +361,16 @@ impl<'ctx> Codegen<'ctx> {
             }
             BindingValue::Value(_) => Err(format!("cannot assign to temporary binding {}", name).into()),
             BindingValue::Global => {
-                todo!()
+                let g = if let Some(g) = self.module.get_global(name) {
+                    g
+                } else {
+                    let g = self.module.add_global(self.context.f64_type(), None, name);
+                    g.set_linkage(Linkage::External);
+                    g
+                };
+                let value = self.compile_expr(value)?.into_float_value();
+                self.builder.build_store(g.as_pointer_value(), value)?;
+                Ok(value.into())
             }
         }
     }

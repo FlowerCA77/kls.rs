@@ -40,6 +40,9 @@ struct Cli {
     #[arg(long)]
     fast_math: bool,
 
+    #[arg(long)]
+    dry_run: bool,
+
     #[arg(short, long, default_value_t = 2)]
     optimize: u8,
 }
@@ -88,19 +91,21 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
 
         repl_ctx.jit.add_module(repl_ctx.codegen.take_module())?;
 
-        match item {
-            TopLevel::Expr(_) => {
-                if let Some(func) = repl_ctx.jit.lookup(anon_name.as_str()) {
-                    let result = unsafe { func.call() };
-                    println!("========= Evaluate ========= (stdout)");
-                    println!("ans = {}", result);
-                } else {
-                    eprintln!("====== Evaluate Failed ====== (stderr)");
-                    eprintln!("cannot find {}", anon_name);
+        if !cli.dry_run {
+            match item {
+                TopLevel::Expr(_) => {
+                    if let Some(func) = repl_ctx.jit.lookup(anon_name.as_str()) {
+                        let result = unsafe { func.call() };
+                        println!("========= Evaluate ========= (stdout)");
+                        println!("ans = {}", result);
+                    } else {
+                        eprintln!("====== Evaluate Failed ====== (stderr)");
+                        eprintln!("cannot find {}", anon_name);
+                    }
                 }
-            }
-            _ => {}
-        };
+                _ => {}
+            };
+        }
 
         Ok(())
     })
@@ -125,6 +130,10 @@ fn main() -> Result<()> {
     };
 
     eprintln!("Optimization level: {} => {:#?}", cli.optimize, opt_level);
+
+    if cli.dry_run {
+        eprintln!("WARNING: dry run");
+    }
 
     let context = Context::create();
 

@@ -7,7 +7,7 @@ use crate::frontend::ast::{Binding, ExprAST, FunctionAST, FunctionName, Program,
 pub(crate) const KEYWORDS: &[&str] = &[
     "def", "extern", "let", "if", "then", "else", "for", "in", "once", "import",
 ];
-pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+", "="];
+pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
 pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "=", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
 fn is_op_char(c: char) -> bool { "+-*/\\<>=&|^~!%@$?_".contains(c) }
@@ -188,7 +188,7 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
         ))
         .padded();
 
-        atom_parser.pratt((
+        let pratt_parser = atom_parser.pratt((
             prefix(50, just('-'), |_, rhs, _| ExprAST::Unary {
                 op: "-".to_string(),
                 operand: Box::new(rhs),
@@ -270,14 +270,27 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
                     .filter(|c: &char| is_op_char(*c))
                     .repeated()
                     .at_least(1)
-                    .to_slice(),
+                    .to_slice()
+                    .filter(|s: &&str| !s.contains('=')),
                 |lhs, op: &str, rhs, _| ExprAST::Binary {
                     op: op.to_string(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 },
             ),
-        ))
+        ));
+
+        pratt_parser
+            .clone()
+            .then(just('=').padded().ignore_then(expr.clone()).map(Box::new).or_not())
+            .try_map(|(lhs, rhs), span| match rhs {
+                Some(value) => match lhs {
+                    ExprAST::Variable(name) => Ok(ExprAST::Assign { name, value }),
+                    _ => Err(Rich::custom(span, "left side of = must be a variable")),
+                },
+                None => Ok(lhs),
+            })
+            .padded()
     })
     .padded()
 }

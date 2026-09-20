@@ -97,11 +97,6 @@ impl<'ctx> Codegen<'ctx> {
         new_module.set_triple(&self.target_machine.get_triple());
         new_module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
 
-        for name in &self.globals {
-            let g = new_module.add_global(self.context.f64_type(), None, name);
-            g.set_linkage(Linkage::External);
-        }
-
         std::mem::replace(&mut self.module, new_module)
     }
 
@@ -114,7 +109,11 @@ impl<'ctx> Codegen<'ctx> {
             }
         }
 
-        Some(BindingValue::Global)
+        if self.globals.contains(name) {
+            Some(BindingValue::Global)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn create_entry_block_alloca(&self, name: &str) -> Result<PointerValue<'ctx>> {
