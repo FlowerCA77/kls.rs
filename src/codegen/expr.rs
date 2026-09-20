@@ -18,6 +18,16 @@ impl<'ctx> Codegen<'ctx> {
         match binding {
             BindingValue::Value(v) => Ok(v),
             BindingValue::Alloca(ptr) => Ok(self.builder.build_load(self.context.f64_type(), ptr, name)?),
+            BindingValue::Global => {
+                let g = self
+                    .module
+                    .get_global(name)
+                    .ok_or_else(|| format!("global {} not found", name))?;
+                let v = self
+                    .builder
+                    .build_load(self.context.f64_type(), g.as_pointer_value(), name)?;
+                Ok(v.into())
+            }
         }
     }
 
@@ -294,7 +304,7 @@ impl<'ctx> Codegen<'ctx> {
         Ok(last.unwrap_or_else(|| self.context.f64_type().const_float(0.0).into()))
     }
 
-    pub fn compile_var_stmt(&mut self, bindings: &[Binding]) -> Result<BasicValueEnum<'ctx>> {
+    pub fn compile_let(&mut self, bindings: &[Binding]) -> Result<BasicValueEnum<'ctx>> {
         for binding in bindings {
             let init_val = match &binding.init {
                 Some(e) => self.compile_expr(e)?.into_float_value(),
@@ -305,14 +315,14 @@ impl<'ctx> Codegen<'ctx> {
             self.builder.build_store(alloca, init_val)?;
             self.scopes
                 .last_mut()
-                .ok_or("compile error")?
+                .ok_or("try to define a local let-binding in global scope")?
                 .insert(binding.name.clone(), BindingValue::Alloca(alloca));
         }
 
         Ok(self.context.f64_type().const_float(0.0).into())
     }
 
-    pub fn compile_var_expr(&mut self, bindings: &[Binding], body: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
+    pub fn compile_letin(&mut self, bindings: &[Binding], body: &ExprAST) -> Result<BasicValueEnum<'ctx>> {
         self.scopes.push(HashMap::new());
 
         for binding in bindings {
@@ -346,6 +356,9 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(value.into())
             }
             BindingValue::Value(_) => Err(format!("cannot assign to temporary binding {}", name).into()),
+            BindingValue::Global => {
+                todo!()
+            }
         }
     }
 
@@ -365,8 +378,8 @@ impl<'ctx> Codegen<'ctx> {
                 e_body,
             } => self.compile_for(var, e_init, e_cond, e_step, e_body),
             ExprAST::Block(exprs) => self.compile_block(exprs),
-            ExprAST::Let(bindings) => self.compile_var_stmt(bindings),
-            ExprAST::Letin { bindings, body } => self.compile_var_expr(bindings, body),
+            ExprAST::Let(bindings) => self.compile_let(bindings),
+            ExprAST::Letin { bindings, body } => self.compile_letin(bindings, body),
             ExprAST::Assign { name, value } => self.compile_assign(name.as_str(), value),
         }
     }

@@ -4,7 +4,9 @@ use chumsky::prelude::*;
 
 use crate::frontend::ast::{Binding, ExprAST, FunctionAST, FunctionName, Program, PrototypeAST, TopLevel};
 
-pub(crate) const KEYWORDS: &[&str] = &["def", "extern", "let", "if", "then", "else", "for", "in"];
+pub(crate) const KEYWORDS: &[&str] = &[
+    "def", "extern", "let", "if", "then", "else", "for", "in", "once", "import",
+];
 pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+", "="];
 pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "=", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
@@ -106,8 +108,14 @@ where P: Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone 
 
 fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
     recursive(|expr| {
+        let exponent_parser = choice((just('e'), just('E')))
+            .ignore_then(choice((just('+'), just('-'))).or_not())
+            .then(text::digits(10))
+            .or_not();
+
         let number_parser = text::int(10)
             .then(just('.').ignore_then(text::digits(10)).or_not())
+            .then(exponent_parser)
             .to_slice()
             .map(|s: &'src str| ExprAST::Number(s.parse().unwrap()));
 
@@ -274,6 +282,28 @@ fn create_expr_parser<'src>() -> impl Parser<'src, &'src str, ExprAST, extra::Er
     .padded()
 }
 
+fn create_once_parser<'src>() -> impl Parser<'src, &'src str, TopLevel, extra::Err<Rich<'src, char>>> + Clone {
+    text::keyword("once")
+        .padded()
+        .then(text::ident().padded().delimited_by(just('('), just(')')).or_not())
+        .map(|(_, name)| TopLevel::Once(name.map(|s: &str| s.to_string())))
+        .padded()
+}
+
+fn create_import_parser<'src>() -> impl Parser<'src, &'src str, TopLevel, extra::Err<Rich<'src, char>>> + Clone {
+    text::keyword("import")
+        .padded()
+        .ignore_then(
+            any::<&str, extra::Err<Rich<'src, char>>>()
+                .filter(|c: &char| !c.is_whitespace() && *c != ';')
+                .repeated()
+                .at_least(1)
+                .to_slice(),
+        )
+        .map(|s: &str| TopLevel::Import(s.to_string()))
+        .padded()
+}
+
 pub(crate) fn create_top_level_parser<'src>()
 -> impl Parser<'src, &'src str, TopLevel, extra::Err<Rich<'src, char>>> + Clone {
     let def_parser = create_def_parser().map(|(proto, body)| TopLevel::Def(FunctionAST { proto, body }));
@@ -282,7 +312,11 @@ pub(crate) fn create_top_level_parser<'src>()
 
     let expr_parser = create_expr_parser().map(TopLevel::Expr);
 
-    choice((def_parser, ext_parser, expr_parser)).padded()
+    let import_parser = create_import_parser();
+
+    let once_parser = create_once_parser();
+
+    choice((def_parser, ext_parser, import_parser, once_parser, expr_parser)).padded()
 }
 
 pub(crate) fn create_program_parser<'src>()

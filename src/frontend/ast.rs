@@ -85,6 +85,8 @@ pub enum TopLevel {
     Def(FunctionAST),
     Extern(PrototypeAST),
     Expr(ExprAST),
+    Import(String),
+    Once(Option<String>),
 }
 
 #[derive(Debug, Clone)]

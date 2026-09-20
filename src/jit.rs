@@ -36,7 +36,7 @@ impl<'ctx> Jit<'ctx> {
             match self.execution_engine.get_function(name) {
                 Ok(f) => Some(f),
                 Err(e) => {
-                    eprintln!("lookup `{}` failed: {:?}", name, e);
+                    eprintln!("lookup {} failed: {:?}", name, e);
                     None
                 }
             }

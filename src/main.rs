@@ -2,6 +2,7 @@ mod codegen;
 mod frontend;
 mod jit;
 mod repl;
+pub mod stdlib;
 
 use std::path::PathBuf;
 
@@ -133,9 +134,19 @@ fn main() -> Result<()> {
 
     let mut codegen = Codegen::new(&context, "kaleidoscope_repl", target_machine, options);
 
-    let jit = Jit::new(&context, codegen.get_target_machine(), opt_level).unwrap();
+    let mut jit = Jit::new(&context, codegen.get_target_machine(), opt_level).unwrap();
 
     if cli.files.is_empty() {
+        codegen.compile_top_level(&TopLevel::Import("std".into()))?;
+
+        if cli.ir {
+            println!("======== Stdlib IR ======== (stderr)");
+            codegen.get_module().print_to_stderr();
+        }
+
+        jit.add_module(codegen.take_module())?;
+
+        println!("============ Repl ========== (stdout)");
         run_repl_mode(&mut ReplContext::new(codegen, jit), &cli, opt_level)?;
     } else {
         compile_files(&mut codegen, &cli)?;
