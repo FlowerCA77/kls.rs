@@ -40,97 +40,159 @@ pub extern "C" fn kls_readd() -> f64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_floor(x: f64) -> f64 { f64::floor(x) }
+pub extern "C" fn kls_floor(x: f64) -> f64 {
+    f64::floor(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_ceil(x: f64) -> f64 { f64::ceil(x) }
+pub extern "C" fn kls_ceil(x: f64) -> f64 {
+    f64::ceil(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_round(x: f64) -> f64 { f64::round(x) }
+pub extern "C" fn kls_round(x: f64) -> f64 {
+    f64::round(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_trunc(x: f64) -> f64 { f64::trunc(x) }
+pub extern "C" fn kls_trunc(x: f64) -> f64 {
+    f64::trunc(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_div_euclid(x: f64, y: f64) -> f64 { x.div_euclid(y) }
+pub extern "C" fn kls_div_euclid(x: f64, y: f64) -> f64 {
+    x.div_euclid(y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_rem_euclid(x: f64, y: f64) -> f64 { x.rem_euclid(y) }
+pub extern "C" fn kls_rem_euclid(x: f64, y: f64) -> f64 {
+    x.rem_euclid(y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_abs(x: f64) -> f64 { f64::abs(x) }
+pub extern "C" fn kls_abs(x: f64) -> f64 {
+    f64::abs(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_pow(x: f64, y: f64) -> f64 { x.powf(y) }
+pub extern "C" fn kls_pow(x: f64, y: f64) -> f64 {
+    x.powf(y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_sin(x: f64) -> f64 { f64::sin(x) }
+pub extern "C" fn kls_sin(x: f64) -> f64 {
+    f64::sin(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_cos(x: f64) -> f64 { f64::cos(x) }
+pub extern "C" fn kls_cos(x: f64) -> f64 {
+    f64::cos(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_tan(x: f64) -> f64 { f64::tan(x) }
+pub extern "C" fn kls_tan(x: f64) -> f64 {
+    f64::tan(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_sinh(x: f64) -> f64 { f64::sinh(x) }
+pub extern "C" fn kls_sinh(x: f64) -> f64 {
+    f64::sinh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_cosh(x: f64) -> f64 { f64::cosh(x) }
+pub extern "C" fn kls_cosh(x: f64) -> f64 {
+    f64::cosh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_tanh(x: f64) -> f64 { f64::tanh(x) }
+pub extern "C" fn kls_tanh(x: f64) -> f64 {
+    f64::tanh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_exp(x: f64) -> f64 { f64::exp(x) }
+pub extern "C" fn kls_exp(x: f64) -> f64 {
+    f64::exp(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_exp2(x: f64) -> f64 { f64::exp2(x) }
+pub extern "C" fn kls_exp2(x: f64) -> f64 {
+    f64::exp2(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_log(x: f64, y: f64) -> f64 { x.log(y) }
+pub extern "C" fn kls_log(x: f64, y: f64) -> f64 {
+    x.log(y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_log2(x: f64) -> f64 { f64::log2(x) }
+pub extern "C" fn kls_log2(x: f64) -> f64 {
+    f64::log2(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_log10(x: f64) -> f64 { f64::log10(x) }
+pub extern "C" fn kls_log10(x: f64) -> f64 {
+    f64::log10(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_ln(x: f64) -> f64 { f64::ln(x) }
+pub extern "C" fn kls_ln(x: f64) -> f64 {
+    f64::ln(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_sqrt(x: f64) -> f64 { f64::sqrt(x) }
+pub extern "C" fn kls_sqrt(x: f64) -> f64 {
+    f64::sqrt(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_cbrt(x: f64) -> f64 { f64::cbrt(x) }
+pub extern "C" fn kls_cbrt(x: f64) -> f64 {
+    f64::cbrt(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_asin(x: f64) -> f64 { f64::asin(x) }
+pub extern "C" fn kls_asin(x: f64) -> f64 {
+    f64::asin(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_acos(x: f64) -> f64 { f64::acos(x) }
+pub extern "C" fn kls_acos(x: f64) -> f64 {
+    f64::acos(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_atan(x: f64) -> f64 { f64::atan(x) }
+pub extern "C" fn kls_atan(x: f64) -> f64 {
+    f64::atan(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_atan2(x: f64, y: f64) -> f64 { f64::atan2(x, y) }
+pub extern "C" fn kls_atan2(x: f64, y: f64) -> f64 {
+    f64::atan2(x, y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_hypot(x: f64, y: f64) -> f64 { f64::hypot(x, y) }
+pub extern "C" fn kls_hypot(x: f64, y: f64) -> f64 {
+    f64::hypot(x, y)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_asinh(x: f64) -> f64 { f64::asinh(x) }
+pub extern "C" fn kls_asinh(x: f64) -> f64 {
+    f64::asinh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_acosh(x: f64) -> f64 { f64::acosh(x) }
+pub extern "C" fn kls_acosh(x: f64) -> f64 {
+    f64::acosh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_atanh(x: f64) -> f64 { f64::atanh(x) }
+pub extern "C" fn kls_atanh(x: f64) -> f64 {
+    f64::atanh(x)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kls_recip(x: f64) -> f64 { f64::recip(x) }
+pub extern "C" fn kls_recip(x: f64) -> f64 {
+    f64::recip(x)
+}
 
 /// Kadlec, Jan (2010). "Řrřlog::Improving the fast inverse square root" (personal blog). Archived from the original on 2018-07-09. Retrieved 2020-12-14.
 #[unsafe(no_mangle)]

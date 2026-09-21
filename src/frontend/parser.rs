@@ -11,7 +11,9 @@ pub(crate) const RESERVED_SYMBOLS: &[&str] = &["="];
 pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
 pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
-fn is_op_char(c: char) -> bool { "+-*/\\<>=&|^~!%@$?_".contains(c) }
+fn is_op_char(c: char) -> bool {
+    "+-*/\\<>=&|^~!%$?_".contains(c)
+}
 
 fn create_identifier_parser<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
     text::ident()
@@ -89,7 +91,9 @@ fn create_ext_parser<'src>() -> impl Parser<'src, &'src str, PrototypeAST, extra
 }
 
 fn create_let_parser<'src, P>(expr: P) -> impl Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone
-where P: Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone {
+where
+    P: Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone,
+{
     let binding_parser = text::ident()
         .padded()
         .map(|s: &str| s.to_string())
@@ -103,7 +107,10 @@ where P: Parser<'src, &'src str, ExprAST, extra::Err<Rich<'src, char>>> + Clone 
         .ignore_then(bindings_parser.clone())
         .then_ignore(text::keyword("in").padded())
         .then(expr.clone())
-        .map(|(bindings, body)| ExprAST::Letin { bindings, body: Box::new(body) });
+        .map(|(bindings, body)| ExprAST::Letin {
+            bindings,
+            body: Box::new(body),
+        });
 
     let let_stmt_parser = text::keyword("let")
         .padded()

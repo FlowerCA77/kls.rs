@@ -14,6 +14,7 @@ use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, Targe
 use crate::codegen::{Codegen, CodegenOptions};
 use crate::frontend::ast::TopLevel;
 use crate::jit::Jit;
+use crate::repl::ReplInput;
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -23,7 +24,9 @@ struct ReplContext<'ctx> {
 }
 
 impl<'ctx> ReplContext<'ctx> {
-    fn new(codegen: Codegen<'ctx>, jit: Jit<'ctx>) -> Self { Self { codegen, jit } }
+    fn new(codegen: Codegen<'ctx>, jit: Jit<'ctx>) -> Self {
+        Self { codegen, jit }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -66,46 +69,121 @@ fn create_target_machine(opt_level: OptimizationLevel) -> TargetMachine {
 }
 
 fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationLevel) -> Result<()> {
-    repl::run_repl(|item| {
-        let anon_name = repl_ctx
-            .codegen
-            .compile_top_level(&item)?
-            .unwrap_or(String::from("__anon_expr"));
+    repl::run_repl(|input| {
+        match input {
+            ReplInput::Item(item) => {
+                let anon_name = repl_ctx
+                    .codegen
+                    .compile_top_level(&item)?
+                    .unwrap_or(String::from("__anon_expr"));
 
-        match opt_level {
-            OptimizationLevel::None => repl_ctx.codegen.optimize("default<O0>")?,
-            OptimizationLevel::Less => repl_ctx.codegen.optimize("default<O1>")?,
-            OptimizationLevel::Default => repl_ctx.codegen.optimize("default<O2>")?,
-            OptimizationLevel::Aggressive => repl_ctx.codegen.optimize("default<O3>")?,
-        }
+                match opt_level {
+                    OptimizationLevel::None => repl_ctx.codegen.optimize("default<O0>")?,
+                    OptimizationLevel::Less => repl_ctx.codegen.optimize("default<O1>")?,
+                    OptimizationLevel::Default => repl_ctx.codegen.optimize("default<O2>")?,
+                    OptimizationLevel::Aggressive => repl_ctx.codegen.optimize("default<O3>")?,
+                }
 
-        if cli.ast {
-            eprintln!("=========== AST =========== (stderr)");
-            eprintln!("{:#?}", item);
-        }
+                if cli.ast {
+                    eprintln!("=== AST === (stderr)");
+                    eprintln!("{:#?}", item);
+                }
 
-        if cli.ir {
-            eprintln!("========= LLVM IR ========= (stderr)");
-            repl_ctx.codegen.get_module().print_to_stderr();
-        }
+                if cli.ir {
+                    eprintln!("=== LLVM IR === (stderr)");
+                    repl_ctx.codegen.get_module().print_to_stderr();
+                }
 
-        repl_ctx.jit.add_module(repl_ctx.codegen.take_module())?;
+                repl_ctx.jit.add_module(repl_ctx.codegen.take_module())?;
 
-        if !cli.dry_run {
-            match item {
-                TopLevel::Expr(_) => {
-                    if let Some(func) = repl_ctx.jit.lookup(anon_name.as_str()) {
-                        let result = unsafe { func.call() };
-                        println!("========= Evaluate ========= (stdout)");
-                        println!("ans = {}", result);
-                    } else {
-                        eprintln!("====== Evaluate Failed ====== (stderr)");
-                        eprintln!("cannot find {}", anon_name);
+                if !cli.dry_run {
+                    match item {
+                        TopLevel::Expr(_) => {
+                            if let Some(func) = repl_ctx.jit.lookup(anon_name.as_str()) {
+                                let result = unsafe { func.call() };
+                                println!("=== Evaluate === (stdout)");
+                                println!("ans = {}", result);
+                            } else {
+                                eprintln!("=== Evaluate Failed === (stderr)");
+                                eprintln!("cannot find {}", anon_name);
+                            }
+                        }
+                        _ => {}
+                    };
+                }
+            }
+
+            ReplInput::Debug(cmd) => {
+                let parts: Vec<&str> = cmd.split_whitespace().collect();
+                match parts.as_slice() {
+                    [] | ["help"] | ["?"] => {
+                        // TODO: help
+                        eprintln!("TODO: help");
+                    }
+
+                    ["target"] => {
+                        eprintln!("=== Target Machine === (stderr)");
+                        eprintln!("CPU: {}", repl_ctx.codegen.get_target_machine().get_cpu());
+                        eprintln!(
+                            "Feature String: {:#?}",
+                            repl_ctx.codegen.get_target_machine().get_feature_string()
+                        );
+                        eprintln!("Target: {:#?}", repl_ctx.codegen.get_target_machine().get_target());
+                        eprintln!(
+                            "Target Data:{:#?}",
+                            repl_ctx.codegen.get_target_machine().get_target_data()
+                        );
+                        eprintln!("Triple: {}", repl_ctx.codegen.get_target_machine().get_triple());
+                    }
+
+                    ["ir"] => {
+                        eprintln!("=== LLVM IR of current module === (stderr)");
+                        repl_ctx.codegen.get_module().print_to_stderr();
+                    }
+
+                    ["protos"] => {
+                        eprintln!("=== Function Prototypes === (stderr)");
+                        for name in repl_ctx.codegen.get_function_proto_names() {
+                            eprintln!("{}", name);
+                        }
+                    }
+
+                    ["globals"] => {
+                        eprintln!("=== Global Scope === (stderr)");
+                        for name in repl_ctx.codegen.get_global_names() {
+                            eprintln!("{}", name);
+                        }
+                    }
+
+                    ["imported"] => {
+                        eprintln!("=== Imported Markers === (stderr)");
+                        for marker in repl_ctx.codegen.get_imported_markers() {
+                            eprintln!("{:?}", marker);
+                        }
+                    }
+
+                    ["scopes"] => {
+                        eprintln!("=== Current Scope Depth === (stderr)");
+                        eprintln!("scope depth: {}", repl_ctx.codegen.get_scope_depth());
+                    }
+
+                    ["anon"] => {
+                        eprintln!("=== Current Anonymous Counter  === (stderr)");
+                        eprintln!("anon counter: {}", repl_ctx.codegen.get_anon_counter());
+                    }
+
+                    ["options"] => {
+                        eprintln!("=== ERR === (stderr)");
+                        eprintln!("{:?}", repl_ctx.codegen.get_options());
+                    }
+
+                    _ => {
+                        eprintln!("unknown debug command: {}", cmd);
+                        eprintln!("try @help");
                     }
                 }
-                _ => {}
-            };
-        }
+            }
+        };
 
         Ok(())
     })
@@ -139,7 +217,9 @@ fn main() -> Result<()> {
 
     let target_machine = create_target_machine(opt_level);
 
-    let options = CodegenOptions { fast_math: cli.fast_math };
+    let options = CodegenOptions {
+        fast_math: cli.fast_math,
+    };
 
     let mut codegen = Codegen::new(&context, "kaleidoscope_repl", target_machine, options);
 

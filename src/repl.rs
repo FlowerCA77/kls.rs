@@ -34,8 +34,15 @@ impl Validator for KaleidoscopeHelper {
     }
 }
 
-pub fn run_repl<F>(mut on_item: F) -> Result<()>
-where F: FnMut(TopLevel) -> Result<()> {
+pub enum ReplInput {
+    Item(TopLevel),
+    Debug(String),
+}
+
+pub fn run_repl<F>(mut handler: F) -> Result<()>
+where
+    F: FnMut(ReplInput) -> Result<()>,
+{
     let mut rl = Editor::new()?;
     rl.set_helper(Some(KaleidoscopeHelper));
 
@@ -51,11 +58,19 @@ where F: FnMut(TopLevel) -> Result<()> {
                 if input.is_empty() {
                     continue;
                 }
+
                 rl.add_history_entry(input)?;
+
+                if let Some(cmd) = input.strip_prefix('@') {
+                    if let Err(e) = handler(ReplInput::Debug(cmd.to_string())) {
+                        eprintln!("debug error: {}", e);
+                    }
+                    continue;
+                }
 
                 match create_top_level_parser().parse(input).into_result() {
                     Ok(item) => {
-                        if let Err(e) = on_item(item) {
+                        if let Err(e) = handler(ReplInput::Item(item)) {
                             eprintln!("error: {}", e);
                         }
                     }

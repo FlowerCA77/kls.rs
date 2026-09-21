@@ -33,7 +33,9 @@ mod tests {
         assert!(result.is_ok(), "parse failed: {:#?}", result);
     }
 
-    fn fast_parses(input: &str) -> bool { create_top_level_parser().parse(input).into_result().is_ok() }
+    fn fast_parses(input: &str) -> bool {
+        create_top_level_parser().parse(input).into_result().is_ok()
+    }
 
     #[test]
     fn test_valid_inputs() {

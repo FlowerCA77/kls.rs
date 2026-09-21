@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use inkwell::builder::Builder;
 use inkwell::context::Context;
-use inkwell::module::{Linkage, Module};
+use inkwell::module::Module;
 use inkwell::targets::TargetMachine;
 use inkwell::values::{BasicValueEnum, PointerValue};
 
@@ -44,7 +44,6 @@ pub(crate) struct Codegen<'ctx> {
     pub(crate) target_machine: TargetMachine,
     pub(crate) scopes: Vec<HashMap<String, BindingValue<'ctx>>>,
     pub(crate) globals: HashSet<String>,
-    pub(crate) pending_inits: Vec<String>,
     pub(crate) function_protos: HashMap<String, PrototypeAST>,
     pub(crate) options: CodegenOptions,
 }
@@ -60,7 +59,6 @@ impl<'ctx> Codegen<'ctx> {
         let builder = context.create_builder();
         let scopes = Vec::new();
         let globals = HashSet::new();
-        let pending_inits = Vec::new();
         let function_protos = HashMap::new();
         let imported = HashSet::new();
 
@@ -76,13 +74,10 @@ impl<'ctx> Codegen<'ctx> {
             target_machine,
             scopes,
             globals,
-            pending_inits,
             function_protos,
             options,
         }
     }
-
-    pub(crate) fn get_module(&self) -> &Module<'ctx> { &self.module }
 
     pub(crate) fn take_module(&mut self) -> Module<'ctx> {
         let module_name = self
@@ -99,8 +94,6 @@ impl<'ctx> Codegen<'ctx> {
 
         std::mem::replace(&mut self.module, new_module)
     }
-
-    pub(crate) fn get_target_machine(&self) -> &TargetMachine { &self.target_machine }
 
     pub(crate) fn lookup_variable(&self, name: &str) -> Option<BindingValue<'ctx>> {
         for scope in self.scopes.iter().rev() {
@@ -136,5 +129,45 @@ impl<'ctx> Codegen<'ctx> {
         tmp_builder
             .build_alloca(self.context.f64_type(), name)
             .map_err(Into::into)
+    }
+}
+
+impl<'ctx> Codegen<'ctx> {
+    pub(crate) fn get_target_machine(&self) -> &TargetMachine {
+        &self.target_machine
+    }
+
+    pub(crate) fn get_module(&self) -> &Module<'ctx> {
+        &self.module
+    }
+
+    pub(crate) fn get_function_proto_names(&self) -> Vec<String> {
+        self.function_protos.keys().map(|s| s.clone()).collect()
+    }
+
+    pub(crate) fn get_global_names(&self) -> Vec<String> {
+        self.globals.iter().map(|s| s.clone()).collect()
+    }
+
+    pub(crate) fn get_imported_markers(&self) -> Vec<String> {
+        self.imported
+            .iter()
+            .map(|s| match s.clone() {
+                ImportMarker::Named(name) => format!("<{}>", name),
+                ImportMarker::Path(path) => path.to_str().unwrap_or("<unknown>").to_string(),
+            })
+            .collect()
+    }
+
+    pub(crate) fn get_scope_depth(&self) -> usize {
+        self.scopes.len()
+    }
+
+    pub(crate) fn get_anon_counter(&self) -> usize {
+        self.anon_counter
+    }
+
+    pub(crate) fn get_options(&self) -> String {
+        format!("{:#?}", self.options)
     }
 }

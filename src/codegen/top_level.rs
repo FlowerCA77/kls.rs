@@ -60,7 +60,7 @@ impl<'ctx> Codegen<'ctx> {
             unsafe {
                 init_fn.delete();
             }
-            return Err(format!("invalid `let` in `{}`", func_name).into());
+            return Err(format!("invalid let in {}", func_name).into());
         }
 
         Ok(Some(func_name))

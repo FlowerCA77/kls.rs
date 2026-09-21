@@ -5,9 +5,3 @@ group_imports = "StdExternalCrate"
 
 max_width = 120
 
-empty_item_single_line = true
-fn_single_line = true
-single_line_if_else_max_width = 60
-single_line_let_else_max_width = 60
-struct_lit_width = 32
-where_single_line = true
