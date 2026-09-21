@@ -229,13 +229,13 @@ fn main() -> Result<()> {
         codegen.compile_top_level(&TopLevel::Import("std".into()))?;
 
         if cli.ir {
-            println!("======== Stdlib IR ======== (stderr)");
+            println!("=== Stdlib IR === (stderr)");
             codegen.get_module().print_to_stderr();
         }
 
         jit.add_module(codegen.take_module())?;
 
-        println!("============ Repl ========== (stdout)");
+        println!("=== Repl === (stdout)");
         run_repl_mode(&mut ReplContext::new(codegen, jit), &cli, opt_level)?;
     } else {
         compile_files(&mut codegen, &cli)?;
