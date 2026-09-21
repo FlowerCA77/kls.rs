@@ -37,6 +37,7 @@ impl Validator for KaleidoscopeHelper {
 pub enum ReplInput {
     Item(TopLevel),
     Debug(String),
+    Shcmd(String),
 }
 
 pub fn run_repl<F>(mut handler: F) -> Result<()>
@@ -63,6 +64,13 @@ where
 
                 if let Some(cmd) = input.strip_prefix('@') {
                     if let Err(e) = handler(ReplInput::Debug(cmd.to_string())) {
+                        eprintln!("debug error: {}", e);
+                    }
+                    continue;
+                }
+
+                if let Some(cmd) = input.strip_prefix('!') {
+                    if let Err(e) = handler(ReplInput::Shcmd(cmd.to_string())) {
                         eprintln!("debug error: {}", e);
                     }
                     continue;

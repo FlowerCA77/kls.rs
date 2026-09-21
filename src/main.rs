@@ -5,6 +5,7 @@ mod repl;
 pub mod stdlib;
 
 use std::path::PathBuf;
+use std::process::Command;
 
 use clap::Parser;
 use inkwell::OptimizationLevel;
@@ -182,6 +183,15 @@ fn run_repl_mode(repl_ctx: &mut ReplContext, cli: &Cli, opt_level: OptimizationL
                         eprintln!("try @help");
                     }
                 }
+            }
+
+            ReplInput::Shcmd(shcmd) => {
+                eprintln!("=== Shell Command Output ===");
+                let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
+                let status = Command::new(shell.clone()).arg("-c").arg(shcmd).status()?;
+                eprintln!("=== Shell Command Info === (stderr)");
+                eprintln!("Shell: {}", shell);
+                eprintln!("Status: {}", status);
             }
         };
 

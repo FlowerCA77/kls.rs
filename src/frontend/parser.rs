@@ -12,7 +12,7 @@ pub(crate) const BUILTIN_UNARY_OPS: &[&str] = &["-", "+"];
 pub(crate) const BUILTIN_BINARY_OPS: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "<=>"];
 
 fn is_op_char(c: char) -> bool {
-    "+-*/\\<>=&|^~!%$?_".contains(c)
+    "+-*/\\<>=&|^~%$?_".contains(c)
 }
 
 fn create_identifier_parser<'src>() -> impl Parser<'src, &'src str, String, extra::Err<Rich<'src, char>>> + Clone {
