@@ -1,0 +1,8 @@
+once
+
+extern e_init()
+extern e_cond()
+extern e_step()
+extern e_body()
+
+for var = e_init(), e_cond(), e_step() in e_body()

@@ -261,6 +261,8 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.position_at_end(loop_bb);
         let variable = self.builder.build_phi(self.context.f64_type(), var)?;
         variable.add_incoming(&[(&init_val, preheader_bb)]);
+        let forbody = self.builder.build_phi(self.context.f64_type(), "forbody")?;
+        forbody.add_incoming(&[(&self.context.f64_type().const_float(f64::NAN), preheader_bb)]);
 
         self.scopes.push(HashMap::new());
         self.scopes
@@ -279,19 +281,20 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.build_conditional_branch(cmp, body_bb, after_bb)?;
 
         self.builder.position_at_end(body_bb);
-        self.compile_expr(e_body)?;
 
+        let body_val = self.compile_expr(e_body)?.into_float_value();
         let step_val = self.compile_expr(e_step)?.into_float_value();
 
         let body_end_bb = self.builder.get_insert_block().ok_or("llvm error")?;
         self.builder.build_unconditional_branch(loop_bb)?;
         variable.add_incoming(&[(&step_val, body_end_bb)]);
+        forbody.add_incoming(&[(&body_val, body_end_bb)]);
 
         self.scopes.pop();
 
         self.builder.position_at_end(after_bb);
 
-        Ok(self.context.f64_type().const_float(0.0).into())
+        Ok(forbody.as_basic_value())
     }
 
     fn compile_block(&mut self, exprs: &[ExprAST]) -> Result<BasicValueEnum<'ctx>> {
