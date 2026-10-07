@@ -272,10 +272,15 @@ dependencies = [
  "chumsky",
  "clap",
  "inkwell",
+ "kls-stdlib",
  "rustyline",
  "rustyline-derive",
  "thiserror",
 ]
+
+[[package]]
+name = "kls-stdlib"
+version = "0.1.0"
 
 [[package]]
 name = "lazy_static"

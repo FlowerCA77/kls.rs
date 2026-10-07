@@ -1,0 +1,18 @@
+import std
+
+def main() {
+    kls_putchard(72);
+    kls_putchard(101);
+    kls_putchard(108);
+    kls_putchard(108);
+    kls_putchard(111);
+    kls_putchard(44);
+    kls_putchard(32);
+    kls_putchard(119);
+    kls_putchard(111);
+    kls_putchard(114);
+    kls_putchard(108);
+    kls_putchard(100);
+    kls_putchard(33);
+    kls_putchard(10)
+}
